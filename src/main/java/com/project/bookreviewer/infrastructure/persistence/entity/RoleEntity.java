@@ -1,4 +1,5 @@
 package com.project.bookreviewer.infrastructure.persistence.entity;
 
-public class RoleEntity {
+public enum RoleEntity {
+    USER, CURATOR, ADMIN
 }

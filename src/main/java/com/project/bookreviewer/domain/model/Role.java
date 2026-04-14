@@ -1,4 +1,5 @@
 package com.project.bookreviewer.domain.model;
 
-public class Role {
+public enum Role {
+    USER, CURATOR, ADMIN
 }
