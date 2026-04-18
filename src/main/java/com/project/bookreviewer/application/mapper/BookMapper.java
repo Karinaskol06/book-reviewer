@@ -8,7 +8,10 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface BookMapper {
-    @Mapping(target = "averageRating", ignore = true) // to be calculated
+    @Mapping(target = "ratingStats", ignore = true)
+    @Mapping(target = "userReadingStatus", ignore = true)
+    @Mapping(target = "userHasReviewed", ignore = true)
+    @Mapping(target = "recommendationReason", ignore = true)
     @Mapping(target = "coverUrl", source = "coverUrl",
             defaultValue = "src/main/resources/static/images/book_placeholder.png")
     BookResponse toResponse(Book book);

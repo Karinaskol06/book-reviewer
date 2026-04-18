@@ -116,6 +116,12 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
         return jpaBookRepository.existsByNormalizedTitleAndAuthor(normalizedTitle, author);
     }
 
+    @Override
+    public long count() {
+        return jpaBookRepository.count();
+    }
+
+
     private BookEntity mapToEntity(Book book) {
         return BookEntity.builder()
                 .id(book.getId())
@@ -127,6 +133,9 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
                 .publicationYear(book.getPublicationYear())
                 .genres(book.getGenres())
                 .createdAt(book.getCreatedAt())
+                .averageRating(book.getAverageRating())
+                .ratingCount(book.getRatingCount())
+                .totalReviews(book.getTotalReviews())
                 .build();
     }
 
@@ -141,6 +150,9 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
                 .publicationYear(entity.getPublicationYear())
                 .genres(entity.getGenres())
                 .createdAt(entity.getCreatedAt())
+                .averageRating(entity.getAverageRating())
+                .ratingCount(entity.getRatingCount())
+                .totalReviews(entity.getTotalReviews())
                 .build();
     }
 }

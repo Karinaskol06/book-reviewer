@@ -20,4 +20,5 @@ public class BookResponse {
     private RatingStatsDto ratingStats;
     private ReadingStatus userReadingStatus; // if authenticated
     private Boolean userHasReviewed; // if authenticated
+    private String recommendationReason; // for elasticsearch
 }

@@ -8,11 +8,15 @@ import com.project.bookreviewer.application.dto.response.RatingStatsDto;
 import com.project.bookreviewer.application.mapper.BookMapper;
 import com.project.bookreviewer.application.service.BookService;
 import com.project.bookreviewer.application.service.ReviewService;
+import com.project.bookreviewer.application.service.SearchService;
 import com.project.bookreviewer.application.service.UserBookStatusService;
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
 public class BookController {
     private final BookService bookService;
     private final ReviewService reviewService;
+    private final SearchService searchService;
     private final UserBookStatusService userBookStatusService;
     private final SecurityUtils securityUtils;
     private final BookMapper bookMapper;
@@ -86,14 +91,10 @@ public class BookController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<BookResponse>> search(
+    public ResponseEntity<Page<BookResponse>> search(
             @RequestParam String query,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(
-                bookService.searchBooks(query, page, size).stream()
-                        .map(bookMapper::toResponse).collect(Collectors.toList())
-        );
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(searchService.searchBooks(query, pageable));
     }
 
     /* helper methods */

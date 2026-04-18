@@ -6,6 +6,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.List;
 import java.util.Optional;
 
 public interface JpaReviewRepository extends JpaRepository<ReviewEntity, Long> {
@@ -25,4 +27,13 @@ public interface JpaReviewRepository extends JpaRepository<ReviewEntity, Long> {
     Object[] getRatingStats(@Param("bookId") Long bookId);
 
     long countByUserId(Long userId);
+
+    @Query("SELECT r.pacing, COUNT(r) FROM ReviewEntity r WHERE r.bookId = :bookId GROUP BY r.pacing ORDER BY COUNT(r) DESC")
+    List<Object[]> findPacingCountsByBookId(@Param("bookId") Long bookId);
+
+    @Query("SELECT DISTINCT m FROM ReviewEntity r JOIN r.mood m WHERE r.bookId = :bookId")
+    List<String> findAllMoodsByBookId(@Param("bookId") Long bookId);
+
+    @Query("SELECT COUNT(r) > 0 FROM ReviewEntity r WHERE r.bookId = :bookId AND SIZE(r.contentWarnings) > 0")
+    boolean existsContentWarningsByBookId(@Param("bookId") Long bookId);
 }

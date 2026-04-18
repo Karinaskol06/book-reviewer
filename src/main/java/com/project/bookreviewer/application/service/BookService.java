@@ -1,6 +1,8 @@
 package com.project.bookreviewer.application.service;
 
 import com.project.bookreviewer.application.dto.response.DuplicateCheckResponse;
+import com.project.bookreviewer.domain.event.BookCreatedEvent;
+import com.project.bookreviewer.domain.event.BookUpdatedEvent;
 import com.project.bookreviewer.domain.exception.DuplicateBookException;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.Book;
@@ -8,6 +10,7 @@ import com.project.bookreviewer.domain.port.inbound.BookUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +23,7 @@ import java.util.Optional;
 public class BookService implements BookUseCase {
     private final BookRepositoryPort bookRepository;
     private final ReviewRepositoryPort reviewRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     @Transactional
@@ -35,7 +39,9 @@ public class BookService implements BookUseCase {
         }
 
         try {
-            return bookRepository.save(book);
+            Book saved = bookRepository.save(book);
+            applicationEventPublisher.publishEvent(new BookCreatedEvent(this, saved));
+            return saved;
         } catch (DataIntegrityViolationException e) {
             // DB-level duplicate prevention (concurrent requests)
             Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndAuthor(
@@ -89,12 +95,13 @@ public class BookService implements BookUseCase {
                 .publicationYear(book.getPublicationYear())
                 .genres(book.getGenres())
                 .createdAt(book.getCreatedAt())
-                .averageRating(avg)
+                .averageRating(avg != null ? avg : 0.0)
                 .ratingCount(total != null ? total.intValue() : 0)
                 .totalReviews(total != null ? total.intValue() : 0)
                 .build();
 
-        bookRepository.save(updated);
+        Book saved = bookRepository.save(updated);
+        applicationEventPublisher.publishEvent(new BookUpdatedEvent(this, saved));
     }
 
     // Home page specific

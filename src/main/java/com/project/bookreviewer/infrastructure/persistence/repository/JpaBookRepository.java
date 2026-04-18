@@ -20,7 +20,7 @@ public interface JpaBookRepository extends JpaRepository<BookEntity, Long> {
     @Query("SELECT b FROM BookEntity b JOIN b.genres g WHERE g = :genre")
     List<BookEntity> findByGenre(@Param("genre") String genre, Pageable pageable);
 
-    @Query("SELECT DISTINCT g FROM BookEntity b JOIN b.genres g ORDER BY g")
+    @Query("SELECT DISTINCT g FROM BookEntity b JOIN b.genres g")
     List<String> findAllGenres();
 
     @Query("SELECT b FROM BookEntity b WHERE LOWER(b.title) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(b.author) LIKE LOWER(CONCAT('%', :query, '%'))")

@@ -4,6 +4,7 @@ import com.project.bookreviewer.domain.model.Review;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ReviewRepositoryPort {
@@ -17,4 +18,7 @@ public interface ReviewRepositoryPort {
     long countByUserId(Long userId);
     // For rating stats
     Object[] getRatingStats(Long bookId); // returns [avg, count, distribution]
+    List<Object[]> findPacingCountsByBookId(Long bookId);
+    List<String> findTopMoodsByBookId(Long bookId, int limit);
+    boolean existsContentWarningsByBookId(Long bookId);
 }

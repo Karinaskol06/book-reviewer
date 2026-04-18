@@ -1,9 +1,7 @@
 package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.response.BookResponse;
-import com.project.bookreviewer.application.mapper.BookMapper;
-import com.project.bookreviewer.application.service.BookFilterService;
-import com.project.bookreviewer.domain.model.Book;
+import com.project.bookreviewer.application.service.SearchService;
 import com.project.bookreviewer.domain.model.BookFilterCriteria;
 import com.project.bookreviewer.domain.model.Pacing;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,8 +19,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class BookFilterController {
-    private final BookFilterService filterService;
-    private final BookMapper bookMapper;
+    private final SearchService searchService;
 
     @GetMapping("/books/filter")
     public ResponseEntity<Page<BookResponse>> filterBooks(
@@ -52,12 +50,13 @@ public class BookFilterController {
                 .searchQuery(query)
                 .build();
 
-        Page<Book> books = filterService.filterBooks(criteria, pageable);
-        return ResponseEntity.ok(books.map(bookMapper::toResponse));
+        Page<BookResponse> books = searchService.filterBooks(criteria, pageable);
+        return ResponseEntity.ok(books);
     }
 
     @GetMapping("/genres")
     public ResponseEntity<List<String>> getAllGenres() {
-        return ResponseEntity.ok(filterService.getAllGenres());
+        // Keep this using DB since genres are relatively static
+        return ResponseEntity.ok(searchService.getAllGenres());
     }
 }

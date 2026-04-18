@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'green\\|yellow'" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
   app:
     build: .
     ports:
@@ -29,7 +45,10 @@ services:
       DB_NAME: ${DB_NAME:-bookreviewer}
       DB_USERNAME: ${DB_USERNAME:-bookreview_user}
       DB_PASSWORD: ${DB_PASSWORD:-bookreview_password}
-      JWT_SECRET: 5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437
+      JWT_SECRET: ${JWT_SECRET}
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
 
 volumes:
   postgres_data:
+  es_data:

@@ -7,9 +7,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
-import java.util.LinkedHashSet;
-import java.util.Optional;
-import java.util.Set;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -71,6 +71,29 @@ public class ReviewRepositoryAdapter implements ReviewRepositoryPort {
         }
 
         return stats;
+    }
+
+    @Override
+    public List<Object[]> findPacingCountsByBookId(Long bookId) {
+        return jpaReviewRepository.findPacingCountsByBookId(bookId);
+    }
+
+    @Override
+    public List<String> findTopMoodsByBookId(Long bookId, int limit) {
+        // Get all moods and manually count frequency, then take top N
+        List<String> allMoods = jpaReviewRepository.findAllMoodsByBookId(bookId);
+        return allMoods.stream()
+                .collect(Collectors.groupingBy(m -> m, Collectors.counting()))
+                .entrySet().stream()
+                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                .limit(limit)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean existsContentWarningsByBookId(Long bookId) {
+        return jpaReviewRepository.existsContentWarningsByBookId(bookId);
     }
 
     // Mapping methods

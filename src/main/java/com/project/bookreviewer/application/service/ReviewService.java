@@ -2,11 +2,13 @@ package com.project.bookreviewer.application.service;
 
 import com.project.bookreviewer.application.dto.request.CreateReviewRequest;
 import com.project.bookreviewer.application.dto.response.RatingStatsDto;
+import com.project.bookreviewer.domain.event.ReviewCreatedEvent;
 import com.project.bookreviewer.domain.exception.DuplicateReviewException;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +22,7 @@ import java.util.Map;
 public class ReviewService {
     private final ReviewRepositoryPort reviewRepository;
     private final BookService bookService; // to update book rating cache
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     public Review createReview(Long userId, Long bookId, CreateReviewRequest request) {
@@ -45,6 +48,7 @@ public class ReviewService {
                 .build();
 
         Review saved = reviewRepository.save(review);
+        applicationEventPublisher.publishEvent(new ReviewCreatedEvent(this, saved));
         bookService.updateBookRatingStats(bookId); // recalc and cache
         return saved;
     }
