@@ -71,6 +71,10 @@ app:
       dir: ${AVATAR_DIR:avatars}           # Subdirectory for avatars
       max-size: 2MB
       allowed-types: image/jpeg,image/png,image/webp
+  feed:
+    backfill:
+      days: 7      # backfill activities from last 7 days
+      limit: 20
 
 elasticsearch:
   host: localhost

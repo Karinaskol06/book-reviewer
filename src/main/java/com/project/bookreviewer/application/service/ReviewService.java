@@ -2,6 +2,7 @@ package com.project.bookreviewer.application.service;
 
 import com.project.bookreviewer.application.dto.request.CreateReviewRequest;
 import com.project.bookreviewer.application.dto.response.RatingStatsDto;
+import com.project.bookreviewer.application.dto.response.ReviewSnippetDto;
 import com.project.bookreviewer.domain.event.ReviewCreatedEvent;
 import com.project.bookreviewer.domain.exception.DuplicateReviewException;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
@@ -118,6 +119,16 @@ public class ReviewService {
                 .total(total != null ? total.intValue() : 0)
                 .distribution(distribution)
                 .build();
+    }
+
+    public ReviewSnippetDto getReviewSnippet(Long reviewId) {
+        return reviewRepository.findById(reviewId)
+                .map(review -> ReviewSnippetDto.builder()
+                        .id(review.getId())
+                        .verdict(review.getVerdict())
+                        .rating(review.getRating())
+                        .build())
+                .orElse(null);
     }
 
     private Double extractDouble(Object value) {

@@ -1,5 +1,6 @@
 package com.project.bookreviewer.application.service;
 
+import com.project.bookreviewer.application.dto.response.BookSummaryDto;
 import com.project.bookreviewer.application.dto.response.DuplicateCheckResponse;
 import com.project.bookreviewer.domain.event.BookCreatedEvent;
 import com.project.bookreviewer.domain.event.BookUpdatedEvent;
@@ -165,5 +166,15 @@ public class BookService implements BookUseCase {
             case Number number -> number.longValue();
             default -> throw new IllegalArgumentException("Cannot convert to Long: " + value.getClass());
         };
+    }
+
+    public BookSummaryDto getBookSummary(Long bookId) {
+        Book book = getBook(bookId);
+        return BookSummaryDto.builder()
+                .id(book.getId())
+                .title(book.getTitle())
+                .author(book.getAuthor())
+                .coverUrl(book.getCoverUrl())
+                .build();
     }
 }

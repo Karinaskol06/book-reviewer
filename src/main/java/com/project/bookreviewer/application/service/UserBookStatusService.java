@@ -1,10 +1,12 @@
 package com.project.bookreviewer.application.service;
 
+import com.project.bookreviewer.domain.event.StatusChangedEvent;
 import com.project.bookreviewer.domain.model.ReadingStatus;
 import com.project.bookreviewer.domain.model.UserBookStatus;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.entity.ReadingStatusEntity;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserBookStatusService {
     private final UserBookStatusRepositoryPort statusRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     public UserBookStatus setStatus(Long userId, Long bookId, ReadingStatus status) {
@@ -33,7 +36,9 @@ public class UserBookStatusService {
                     .status(status)
                     .build();
         }
-        return statusRepository.save(entity);
+        entity = statusRepository.save(entity);
+        applicationEventPublisher.publishEvent(new StatusChangedEvent(this, userId, bookId, status));
+        return entity;
     }
 
     public Optional<UserBookStatus> getStatus(Long userId, Long bookId) {
