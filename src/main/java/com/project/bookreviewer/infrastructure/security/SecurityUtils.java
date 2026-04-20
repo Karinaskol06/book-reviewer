@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 @RequiredArgsConstructor
 public class SecurityUtils {
@@ -21,5 +23,13 @@ public class SecurityUtils {
     public boolean isAuthenticated() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal());
+    }
+
+    public Long getCurrentUserIdOrNull() {
+        try {
+            return getCurrentUserId();
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
