@@ -11,6 +11,7 @@ public class UserProfileResponse {
     private String username;
     private String email;
     private String avatarUrl;
+    private String aboutMe;
     private Set<String> roles;
     private Integer booksReviewed;
     private Integer booksWantToRead;

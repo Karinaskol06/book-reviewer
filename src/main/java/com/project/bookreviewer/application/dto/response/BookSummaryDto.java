@@ -10,4 +10,6 @@ public class BookSummaryDto {
     private String title;
     private String author;
     private String coverUrl;
+    private String description;
+    private Integer totalReviews;
 }

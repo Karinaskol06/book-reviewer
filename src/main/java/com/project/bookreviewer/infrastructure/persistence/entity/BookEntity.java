@@ -26,6 +26,7 @@ public class BookEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(columnDefinition = "TEXT")
     private String coverUrl;
     private Integer publicationYear;
 

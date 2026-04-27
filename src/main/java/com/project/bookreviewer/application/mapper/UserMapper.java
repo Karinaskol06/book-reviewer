@@ -27,8 +27,7 @@ public interface UserMapper {
     @Mapping(target = "booksWantToRead", ignore = true)
     @Mapping(target = "booksReading", ignore = true)
     @Mapping(target = "booksRead", ignore = true)
-    @Mapping(target = "avatarUrl", source = "avatarUrl",
-            defaultValue = "/uploads-book-reviewer/avatars/default-avatar.png")
+    @Mapping(target = "avatarUrl", source = "avatarUrl")
     UserProfileResponse toProfileResponse(User user);
 
     // converts a Set<Role> (domain enum) into a Set<String> - DTO-friendly

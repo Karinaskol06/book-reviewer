@@ -46,8 +46,8 @@ public class ActivityEventRepositoryAdapter implements ActivityEventRepositoryPo
     }
 
     @Override
-    public Page<ActivityEvent> findFeedEvents(Long userId, List<Long> targetUserIds, Pageable pageable) {
-        return jpaRepo.findFeedEvents(userId, targetUserIds, pageable).map(this::mapToDomain);
+    public Page<ActivityEvent> findFeedEvents(Long userId, Pageable pageable) {
+        return jpaRepo.findFeedEvents(userId, pageable).map(this::mapToDomain);
     }
 
     @Override

@@ -33,6 +33,11 @@ spring:
     deserialization:
       fail-on-unknown-properties: true
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
 # JWT Configuration
 jwt:
   secret: ${JWT_SECRET}
@@ -69,7 +74,7 @@ app:
     dir: ${UPLOAD_DIR:./uploads-book-reviewer}          # Base upload directory
     avatar:
       dir: ${AVATAR_DIR:avatars}           # Subdirectory for avatars
-      max-size: 2MB
+      max-size: 10MB
       allowed-types: image/jpeg,image/png,image/webp
   feed:
     backfill:

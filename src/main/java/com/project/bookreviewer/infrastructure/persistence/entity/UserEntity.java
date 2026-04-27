@@ -23,6 +23,7 @@ public class UserEntity {
     private String password;
 
     private String avatarUrl;
+    private String aboutMe;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))

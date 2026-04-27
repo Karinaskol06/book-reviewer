@@ -6,5 +6,7 @@ public enum ActivityType {
     FINISHED_READING,
     ABANDONED,
     REVIEWED,
-    RATED
+    RATED,
+    FOLLOWED_USER,
+    BOOK_ADDED_TO_CATALOG
 }

@@ -9,7 +9,10 @@ import org.mapstruct.Mapping;
 public interface ActivityMapper {
     @Mapping(target = "actor", ignore = true)
     @Mapping(target = "book", ignore = true)
+    @Mapping(target = "targetUser", ignore = true)
     @Mapping(target = "type", expression = "java(event.getType().name())")
     @Mapping(target = "rating", ignore = true)
+    @Mapping(target = "statusLabel", ignore = true)
+    @Mapping(target = "reviewSnippet", ignore = true)
     ActivityFeedItemDto toDto(ActivityEvent event);
 }

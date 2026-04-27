@@ -45,6 +45,12 @@ public class UserBookStatusService {
         return statusRepository.findByUserIdAndBookId(userId, bookId);
     }
 
+    @Transactional
+    public void clearStatus(Long userId, Long bookId) {
+        statusRepository.findByUserIdAndBookId(userId, bookId)
+                .ifPresent(statusRepository::delete);
+    }
+
     public List<UserBookStatus> getUserLibrary(Long userId, ReadingStatus filterStatus) {
         if (filterStatus != null) {
             return statusRepository.findByUserIdAndStatus(userId, filterStatus);

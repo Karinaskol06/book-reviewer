@@ -5,6 +5,7 @@ import com.project.bookreviewer.domain.model.BookFilterCriteria;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.entity.BookEntity;
 import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -50,6 +51,7 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
     @Override
     public Page<Book> filterBooks(BookFilterCriteria criteria, Pageable pageable) {
         Specification<BookEntity> spec = (root, query, cb) -> {
+            query.distinct(true);
             List<Predicate> predicates = new ArrayList<>();
 
             if (criteria.getGenres() != null && !criteria.getGenres().isEmpty()) {
@@ -68,9 +70,12 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
             }
             if (criteria.getSearchQuery() != null && !criteria.getSearchQuery().isBlank()) {
                 String likePattern = "%" + criteria.getSearchQuery().toLowerCase() + "%";
+                Join<BookEntity, String> searchGenresJoin = root.join("genres", JoinType.LEFT);
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("title")), likePattern),
-                        cb.like(cb.lower(root.get("author")), likePattern)
+                        cb.like(cb.lower(root.get("author")), likePattern),
+                        cb.like(cb.lower(root.get("description")), likePattern),
+                        cb.like(cb.lower(searchGenresJoin), likePattern)
                 ));
             }
             // Pacing and contentSafe would require joins to Review; skip for now or implement later

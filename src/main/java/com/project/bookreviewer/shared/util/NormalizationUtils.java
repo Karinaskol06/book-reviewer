@@ -36,18 +36,4 @@ public final class NormalizationUtils {
         return normalized.toLowerCase();
     }
 
-    /**
-     * Normalizes a title for strict duplicate detection.
-     * Same as normalize() but can be extended with additional rules.
-     */
-    public static String normalizeTitle(String title) {
-        return normalize(title);
-    }
-
-    /**
-     * Normalizes an author name for duplicate detection.
-     */
-    public static String normalizeAuthor(String author) {
-        return normalize(author);
-    }
 }

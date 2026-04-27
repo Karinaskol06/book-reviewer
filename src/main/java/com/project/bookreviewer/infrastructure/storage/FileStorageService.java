@@ -38,6 +38,10 @@ public class FileStorageService {
      * @return the relative URL path to access the file (e.g., "/uploads-book-reviewer/avatars/filename.jpg")
      */
     public String storeAvatar(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Avatar file is empty");
+        }
+
         // Validate file type
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
@@ -53,11 +57,12 @@ public class FileStorageService {
         String filename = UUID.randomUUID() + extension;
 
         try {
+            Files.createDirectories(avatarStoragePath);
             Path targetLocation = avatarStoragePath.resolve(filename);
             Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
             // Return the URL path (will be served via static resource mapping)
-            return "/uploads/" + avatarSubDir + "/" + filename;
+            return "/uploads-book-reviewer/" + avatarSubDir + "/" + filename;
         } catch (IOException e) {
             throw new RuntimeException("Failed to store avatar file", e);
         }

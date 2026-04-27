@@ -127,6 +127,10 @@ public class ReviewService {
                         .id(review.getId())
                         .verdict(review.getVerdict())
                         .rating(review.getRating())
+                        .detailedReview(review.getDetailedReview())
+                        .whoIsItFor(review.getWhoIsItFor())
+                        .mood(review.getMood())
+                        .helpfulCount(review.getHelpfulCount())
                         .build())
                 .orElse(null);
     }

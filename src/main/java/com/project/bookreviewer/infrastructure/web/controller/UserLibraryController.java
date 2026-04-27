@@ -40,6 +40,13 @@ public class UserLibraryController {
                 .orElse(ResponseEntity.noContent().build());
     }
 
+    @DeleteMapping("/books/{bookId}/status")
+    public ResponseEntity<Void> clearStatus(@PathVariable Long bookId) {
+        Long userId = securityUtils.getCurrentUserId();
+        statusService.clearStatus(userId, bookId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/library")
     public ResponseEntity<List<UserBookStatusResponse>> getLibrary(
             @RequestParam(required = false) ReadingStatus status) {
@@ -49,4 +56,5 @@ public class UserLibraryController {
                 .map(mapper::toResponse)
                 .collect(Collectors.toList()));
     }
+
 }

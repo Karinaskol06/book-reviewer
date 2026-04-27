@@ -1,0 +1,237 @@
+@import './DashboardPage.css';
+
+.write-review-page {
+  padding-top: 2.2rem;
+  padding-bottom: 2rem;
+  margin-top: 1.2rem!important;
+  margin-bottom: 1.2rem!important;
+  padding-left: 5.6rem;
+  padding-right: 5.6rem;
+}
+
+.review-form-shell {
+  background: #f8f2ea;
+  padding: 1.2rem;
+}
+
+.review-book-head {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 1.35rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(2, 40, 89, 0.15);
+}
+
+.review-book-head img {
+  width: 210px;
+  height: 300px;
+  object-fit: cover;
+}
+
+.review-book-head .kicker {
+  margin: 0;
+  letter-spacing: 0.1em;
+  font-size: 0.78rem;
+  color: #2c5273;
+}
+
+.review-book-head h2 {
+  margin: 0.35rem 0 0.75rem;
+  font-size: clamp(2.2rem, 1.8rem + 2vw, 4rem);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.review-book-head .author {
+  margin: 0 0 1.1rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #2c5273;
+  font-size: 1.75rem;
+}
+
+.head-row {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.head-row label,
+.section-block label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+  color: #2c5273;
+  font-weight: 700;
+}
+
+.head-row select,
+.head-row input,
+.section-block input,
+.section-block textarea {
+  border: none;
+  background: #f2e0d0;
+  color: #022859;
+  padding: 0.75rem;
+}
+
+.stars-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.stars-row span {
+  color: #2c5273;
+  font-size: 1.45rem;
+}
+
+.section-block {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(2, 40, 89, 0.14);
+}
+
+.section-block .two-cols {
+  margin-bottom: 1.35rem;
+}
+
+.section-block h3 {
+  margin: 0 0 0.8rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 2rem;
+}
+
+.two-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.two-cols textarea {
+  min-height: 6rem;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.segmented button {
+  border: none;
+  background: #f2e0d0;
+  padding: 0.55rem 0.7rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  color: #022859;
+}
+
+.segmented button.active {
+  background: #2c5273;
+  color: #f2e0d0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.section-block label:has(.chips) {
+  margin-top: 0.9rem;
+}
+
+.chips button {
+  border: 1px solid rgba(44, 82, 115, 0.2);
+  border-radius: 999px;
+  background: transparent;
+  color: #2c5273;
+  padding: 0.3rem 0.7rem;
+}
+
+.chips button.active {
+  background: #2c5273;
+  color: #f2e0d0;
+}
+
+.warnings {
+  background: #f2e8d5;
+  padding: 0.8rem;
+}
+
+.warnings p {
+  margin: 0 0 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #2c5273;
+}
+
+.warnings > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.check {
+  display: flex !important;
+  gap: 0.45rem;
+  align-items: center;
+  font-weight: 500 !important;
+}
+
+.long-form {
+  min-height: 14rem;
+}
+
+.spoiler {
+  min-height: 6.5rem;
+  border: 1px solid #f2bdc1 !important;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(242, 189, 193, 0.34) !important;
+  margin-top: 0.75rem;
+}
+
+.review-actions {
+  margin-top: 1.2rem;
+  border-top: 1px solid rgba(2, 40, 89, 0.14);
+  padding-top: 1rem;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.review-actions p {
+  margin: 0;
+  color: rgba(2, 40, 89, 0.58);
+}
+
+.review-actions button {
+  border: none;
+  padding: 0.75rem 1.35rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, #d76635, #f2bdc1);
+  color: #fff;
+}
+
+.review-actions button.ghost {
+  background: transparent;
+  color: #2c5273;
+}
+
+@media (max-width: 980px) {
+  .review-book-head,
+  .head-row,
+  .two-cols,
+  .review-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .write-review-page {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}

@@ -6,8 +6,10 @@ import com.project.bookreviewer.domain.port.outbound.UserRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.entity.RoleEntity;
 import com.project.bookreviewer.infrastructure.persistence.entity.UserEntity;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,6 +42,14 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
     }
 
     @Override
+    public List<User> searchByUsername(String username, int limit) {
+        return jpaUserRepository.findByUsernameContainingIgnoreCase(username, PageRequest.of(0, Math.max(limit, 1)))
+                .stream()
+                .map(this::mapToDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public boolean existsByUsername(String username) {
         return jpaUserRepository.existsByUsername(username);
     }
@@ -60,6 +70,7 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
                 .email(user.getEmail())
                 .password(user.getPassword())
                 .avatarUrl(user.getAvatarUrl())
+                .aboutMe(user.getAboutMe())
                 .roles(roleEntities)
                 .enabled(user.isEnabled())
                 .createdAt(user.getCreatedAt())
@@ -77,6 +88,7 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
                 .email(entity.getEmail())
                 .password(entity.getPassword())
                 .avatarUrl(entity.getAvatarUrl())
+                .aboutMe(entity.getAboutMe())
                 .roles(roles)
                 .enabled(entity.isEnabled())
                 .createdAt(entity.getCreatedAt())

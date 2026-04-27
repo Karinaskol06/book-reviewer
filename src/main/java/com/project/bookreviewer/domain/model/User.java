@@ -13,6 +13,7 @@ public class User {
     private String email;
     private String password; // hashed
     private String avatarUrl;
+    private String aboutMe;
     private Set<Role> roles;
     private LocalDateTime createdAt;
     private boolean enabled;

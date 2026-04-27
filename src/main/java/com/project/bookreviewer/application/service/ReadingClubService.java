@@ -18,11 +18,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,8 +26,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class ReadingClubService {
-    private static final String DEBUG_ENDPOINT = "http://127.0.0.1:7793/ingest/44db4bfc-6f6c-4f81-8b9a-3551c8844c7e";
-    private static final HttpClient DEBUG_HTTP_CLIENT = HttpClient.newHttpClient();
     private final ReadingClubRepositoryPort clubRepository;
     private final ClubMembershipRepositoryPort membershipRepository;
     private final UserService userService;
@@ -196,36 +189,6 @@ public class ReadingClubService {
     }
 
     @Transactional
-    public void approveMember(Long clubId, Long approverId, Long userId) {
-        validateClubRole(clubId, approverId, ClubRole.OWNER, ClubRole.MODERATOR);
-
-        ClubMembership membership = membershipRepository.findByClubIdAndUserId(clubId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Membership not found"));
-
-        if (membership.getStatus() != ClubMembershipStatus.PENDING) {
-            throw new IllegalStateException("Member is not in pending state");
-        }
-
-        ClubMembership updated = ClubMembership.builder()
-                .id(membership.getId())
-                .clubId(membership.getClubId())
-                .userId(membership.getUserId())
-                .role(membership.getRole())
-                .status(ClubMembershipStatus.ACTIVE)
-                .joinedAt(LocalDateTime.now())
-                .build();
-        membershipRepository.save(updated);
-        log.info("User {} approved for club {} by {}", userId, clubId, approverId);
-    }
-
-    @Transactional
-    public void rejectMember(Long clubId, Long rejectorId, Long userId) {
-        validateClubRole(clubId, rejectorId, ClubRole.OWNER, ClubRole.MODERATOR);
-        membershipRepository.deleteByClubIdAndUserId(clubId, userId);
-        log.info("User {} rejected from club {} by {}", userId, clubId, rejectorId);
-    }
-
-    @Transactional
     public void promoteToModerator(Long clubId, Long promoterId, Long userId) {
         validateClubRole(clubId, promoterId, ClubRole.OWNER);
         updateMemberRole(clubId, userId, ClubRole.MODERATOR);
@@ -312,34 +275,4 @@ public class ReadingClubService {
         membershipRepository.save(updated);
     }
 
-    private void debugLog(String runId, String hypothesisId, String location, String message, String details) {
-        String payload = "{\"sessionId\":\"57c8c7\",\"runId\":\"" + escapeJson(runId) + "\",\"hypothesisId\":\""
-                + escapeJson(hypothesisId) + "\",\"location\":\"" + escapeJson(location) + "\",\"message\":\""
-                + escapeJson(message) + "\",\"data\":{\"details\":\"" + escapeJson(details)
-                + "\"},\"timestamp\":" + System.currentTimeMillis() + "}";
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(DEBUG_ENDPOINT))
-                    .header("Content-Type", "application/json")
-                    .header("X-Debug-Session-Id", "57c8c7")
-                    .POST(HttpRequest.BodyPublishers.ofString(payload))
-                    .build();
-            DEBUG_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding());
-        } catch (IOException ignored) {
-            // Intentionally ignored so debug logging never alters business behavior.
-        } catch (InterruptedException ignored) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private String escapeJson(String value) {
-        if (value == null) {
-            return "null";
-        }
-        return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
-    }
 }

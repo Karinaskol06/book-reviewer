@@ -38,12 +38,19 @@ public class SearchService {
         if (query == null || query.isBlank()) {
             return Page.empty(pageable);
         }
+        String normalizedQuery = query.trim();
+        String wildcardQuery = "*" + normalizedQuery.toLowerCase() + "*";
         try {
             // Build Elasticsearch query
             var boolQuery = BoolQuery.of(b -> b
-                    .should(s -> s.match(m -> m.field("title").query(query).boost(2.0f)))
-                    .should(s -> s.match(m -> m.field("author").query(query).boost(1.5f)))
-                    .should(s -> s.match(m -> m.field("description").query(query)))
+                    .should(s -> s.match(m -> m.field("title").query(normalizedQuery).boost(2.0f)))
+                    .should(s -> s.match(m -> m.field("author").query(normalizedQuery).boost(1.5f)))
+                    .should(s -> s.match(m -> m.field("description").query(normalizedQuery)))
+                    .should(s -> s.wildcard(w -> w.field("title").value(wildcardQuery).caseInsensitive(true)))
+                    .should(s -> s.wildcard(w -> w.field("author").value(wildcardQuery).caseInsensitive(true)))
+                    .should(s -> s.wildcard(w -> w.field("description").value(wildcardQuery).caseInsensitive(true)))
+                    .should(s -> s.wildcard(w -> w.field("genres").value(wildcardQuery).caseInsensitive(true)))
+                    .minimumShouldMatch("1")
             );
 
             NativeQuery nativeQuery = NativeQuery.builder()
@@ -139,10 +146,16 @@ public class SearchService {
 
             // Full-text search within filtered results
             if (criteria.getSearchQuery() != null && !criteria.getSearchQuery().isBlank()) {
+                String normalizedSearch = criteria.getSearchQuery().trim();
+                String wildcardSearch = "*" + normalizedSearch.toLowerCase() + "*";
                 boolBuilder.must(m -> m.multiMatch(mm -> mm
                         .fields("title^2", "author^1.5", "description")
-                        .query(criteria.getSearchQuery())
+                        .query(normalizedSearch)
                 ));
+                boolBuilder.should(s -> s.wildcard(w -> w.field("title").value(wildcardSearch).caseInsensitive(true)));
+                boolBuilder.should(s -> s.wildcard(w -> w.field("author").value(wildcardSearch).caseInsensitive(true)));
+                boolBuilder.should(s -> s.wildcard(w -> w.field("description").value(wildcardSearch).caseInsensitive(true)));
+                boolBuilder.should(s -> s.wildcard(w -> w.field("genres").value(wildcardSearch).caseInsensitive(true)));
             }
 
             NativeQuery nativeQuery = NativeQuery.builder()

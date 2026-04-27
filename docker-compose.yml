@@ -49,6 +49,13 @@ services:
       ELASTICSEARCH_HOST: elasticsearch
       ELASTICSEARCH_PORT: 9200
 
+  frontend:
+    build: ./bookreviewer-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+
 volumes:
   postgres_data:
   es_data:

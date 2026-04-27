@@ -70,6 +70,7 @@ public class BookController {
 
     @PostMapping
     public ResponseEntity<BookResponse> createBook(@Valid @RequestBody CreateBookRequest request) {
+        Long actorUserId = securityUtils.isAuthenticated() ? securityUtils.getCurrentUserId() : null;
         Book book = Book.builder()
                 .title(request.getTitle())
                 .author(request.getAuthor())
@@ -78,7 +79,7 @@ public class BookController {
                 .publicationYear(request.getPublicationYear())
                 .genres(request.getGenres())
                 .build();
-        Book created = bookService.createBook(book);
+        Book created = bookService.createBook(book, actorUserId);
         return ResponseEntity.created(URI.create("/api/books/" + created.getId()))
                 .body(bookMapper.toResponse(created));
     }

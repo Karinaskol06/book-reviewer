@@ -1,0 +1,45 @@
+.auth-layout {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.auth-layout__panel {
+  width: min(100%, 62rem);
+  min-height: 36rem;
+  background: #ebeaf0;
+  border: 10px solid #ececf0;
+  border-radius: 1.7rem;
+  box-shadow: 0 18px 40px rgba(38, 2, 0, 0.22);
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  overflow: hidden;
+}
+
+.auth-layout__left {
+  padding: 2.1rem 2.2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-layout__right {
+  background: linear-gradient(rgba(54, 32, 35, 0.08), rgba(54, 32, 35, 0.08)),
+    url('/book-login.jpg') center/cover no-repeat;
+}
+
+@media (max-width: 900px) {
+  .auth-layout__panel {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .auth-layout__right {
+    min-height: 15rem;
+  }
+
+  .auth-layout__left {
+    padding: 1.4rem 1.2rem;
+  }
+}

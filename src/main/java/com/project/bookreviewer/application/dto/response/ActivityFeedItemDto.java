@@ -11,8 +11,10 @@ public class ActivityFeedItemDto {
     private ReviewResponse.ReviewUserDto actor;
     private String type; // e.g., "REVIEWED", "WANT_TO_READ"
     private BookSummaryDto book;
+    private ReviewResponse.ReviewUserDto targetUser;
     private Long reviewId;
     private Integer rating; // if review
+    private String statusLabel;
     private LocalDateTime createdAt;
     private ReviewSnippetDto reviewSnippet;
 }

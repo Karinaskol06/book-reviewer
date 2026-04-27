@@ -98,24 +98,6 @@ public class ReadingClubController {
         return ResponseEntity.ok(clubService.getClubMembers(clubId));
     }
 
-    @PutMapping("/{clubId}/members/{userId}/approve")
-    public ResponseEntity<Void> approveMember(
-            @PathVariable Long clubId,
-            @PathVariable Long userId) {
-        Long approverId = securityUtils.getCurrentUserId();
-        clubService.approveMember(clubId, approverId, userId);
-        return ResponseEntity.ok().build();
-    }
-
-    @DeleteMapping("/{clubId}/members/{userId}/reject")
-    public ResponseEntity<Void> rejectMember(
-            @PathVariable Long clubId,
-            @PathVariable Long userId) {
-        Long rejectorId = securityUtils.getCurrentUserId();
-        clubService.rejectMember(clubId, rejectorId, userId);
-        return ResponseEntity.noContent().build();
-    }
-
     @PutMapping("/{clubId}/members/{userId}/promote")
     public ResponseEntity<Void> promoteToModerator(
             @PathVariable Long clubId,

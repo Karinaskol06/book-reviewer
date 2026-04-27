@@ -16,26 +16,19 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class BookService implements BookUseCase {
-    private static final String DEBUG_ENDPOINT = "http://127.0.0.1:7793/ingest/44db4bfc-6f6c-4f81-8b9a-3551c8844c7e";
-    private static final HttpClient DEBUG_HTTP_CLIENT = HttpClient.newHttpClient();
     private final BookRepositoryPort bookRepository;
     private final ReviewRepositoryPort reviewRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     @Transactional
-    public Book createBook(Book book) {
+    public Book createBook(Book book, Long actorUserId) {
         book.normalizeFields();
         // Application-level duplicate check
         Optional<Book> existing = bookRepository.findByNormalizedTitleAndAuthor(
@@ -48,7 +41,7 @@ public class BookService implements BookUseCase {
 
         try {
             Book saved = bookRepository.save(book);
-            applicationEventPublisher.publishEvent(new BookCreatedEvent(this, saved));
+            applicationEventPublisher.publishEvent(new BookCreatedEvent(this, saved, actorUserId));
             return saved;
         } catch (DataIntegrityViolationException e) {
             // DB-level duplicate prevention (concurrent requests)
@@ -176,37 +169,8 @@ public class BookService implements BookUseCase {
                 .title(book.getTitle())
                 .author(book.getAuthor())
                 .coverUrl(book.getCoverUrl())
+                .description(book.getDescription())
+                .totalReviews(book.getTotalReviews())
                 .build();
-    }
-
-    private void debugLog(String runId, String hypothesisId, String location, String message, String details) {
-        String payload = "{\"sessionId\":\"57c8c7\",\"runId\":\"" + escapeJson(runId) + "\",\"hypothesisId\":\""
-                + escapeJson(hypothesisId) + "\",\"location\":\"" + escapeJson(location) + "\",\"message\":\""
-                + escapeJson(message) + "\",\"data\":{\"details\":\"" + escapeJson(details)
-                + "\"},\"timestamp\":" + System.currentTimeMillis() + "}";
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(DEBUG_ENDPOINT))
-                    .header("Content-Type", "application/json")
-                    .header("X-Debug-Session-Id", "57c8c7")
-                    .POST(HttpRequest.BodyPublishers.ofString(payload))
-                    .build();
-            DEBUG_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding());
-        } catch (IOException ignored) {
-            // Intentionally ignored so debug logging never alters business behavior.
-        } catch (InterruptedException ignored) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private String escapeJson(String value) {
-        if (value == null) {
-            return "null";
-        }
-        return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
     }
 }

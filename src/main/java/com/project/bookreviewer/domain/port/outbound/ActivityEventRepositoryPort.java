@@ -14,7 +14,7 @@ public interface ActivityEventRepositoryPort {
     // For feed of followed users
     Page<ActivityEvent> findByTargetUserIdIn(List<Long> targetUserIds, Pageable pageable);
 
-    Page<ActivityEvent> findFeedEvents(Long userId, List<Long> targetUserIds, Pageable pageable);
+    Page<ActivityEvent> findFeedEvents(Long userId, Pageable pageable);
 
     List<ActivityEvent> findRecentSelfActivities(Long userId, int limit, LocalDateTime since);
 
