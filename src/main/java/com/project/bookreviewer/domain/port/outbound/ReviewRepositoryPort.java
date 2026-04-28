@@ -12,6 +12,7 @@ public interface ReviewRepositoryPort {
     Optional<Review> findById(Long id);
     Optional<Long> findUserIdByReviewId(Long reviewId);
     Page<Review> findByBookId(Long bookId, Pageable pageable);
+    Page<Review> findByUserId(Long userId, Pageable pageable);
     Optional<Review> findByUserIdAndBookId(Long userId, Long bookId);
     void deleteById(Long id);
     boolean existsByUserIdAndBookId(Long userId, Long bookId);

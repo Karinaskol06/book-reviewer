@@ -98,39 +98,4 @@ public class BookController {
         return ResponseEntity.ok(searchService.searchBooks(query, pageable));
     }
 
-    /* helper methods */
-
-    private RatingStatsDto buildRatingStats(Object[] stats) {
-        if (stats == null || stats.length < 7) {
-            return RatingStatsDto.builder()
-                    .average(0.0)
-                    .total(0)
-                    .distribution(Map.of(5,0,4,0,3,0,2,0,1,0))
-                    .build();
-        }
-
-        Double avg = stats[0] != null ? (Double) stats[0] : 0.0;
-        Long total = stats[1] != null ? (Long) stats[1] : 0L;
-        Long count5 = stats[2] != null ? (Long) stats[2] : 0L;
-        Long count4 = stats[3] != null ? (Long) stats[3] : 0L;
-        Long count3 = stats[4] != null ? (Long) stats[4] : 0L;
-        Long count2 = stats[5] != null ? (Long) stats[5] : 0L;
-        Long count1 = stats[6] != null ? (Long) stats[6] : 0L;
-
-        Map<Integer, Integer> distribution = Map.of(
-                5, count5.intValue(),
-                4, count4.intValue(),
-                3, count3.intValue(),
-                2, count2.intValue(),
-                1, count1.intValue()
-        );
-
-        return RatingStatsDto.builder()
-                .average(avg)
-                .total(total.intValue())
-                .distribution(distribution)
-                .build();
-    }
-
-
 }

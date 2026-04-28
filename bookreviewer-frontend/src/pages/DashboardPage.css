@@ -37,9 +37,18 @@
   letter-spacing: 0.01em;
 }
 
+.home-nav h1 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  min-height: 2.2rem;
+}
+
 .home-nav nav {
   display: flex;
   gap: 1.3rem;
+  align-items: center;
 }
 
 .home-nav nav a,
@@ -48,6 +57,9 @@
   text-decoration: none;
   font-weight: 600;
   font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.2rem;
   transition: color 0.2s ease;
 }
 

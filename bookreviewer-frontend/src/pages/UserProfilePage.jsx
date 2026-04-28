@@ -1,20 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useAuth } from '../hooks/useAuth.js'
-import { getBookDetail, getBookReviews } from '../services/bookService.js'
+import { getBookDetail } from '../services/bookService.js'
+import { getBooksByGenre, getTrendingBooks } from '../services/homeService.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import {
   exportReadingListPdf,
   getMyProfile,
+  getMyReviews,
   getUserProfileById,
   getUserLibrary,
   getUserLibraryByUserId,
+  getUserReviewsByUserId,
   updateAboutMe,
   uploadAvatar,
 } from '../services/profileService.js'
 import './UserProfilePage.css'
 
 const UserProfilePage = () => {
+  const MotionArticle = motion.article
   const navigate = useNavigate()
   const { id } = useParams()
   const { logout } = useAuth()
@@ -31,7 +36,8 @@ const UserProfilePage = () => {
   const [readBooks, setReadBooks] = useState([])
   const [myReviews, setMyReviews] = useState([])
   const [genreCounts, setGenreCounts] = useState({})
-  const [moodCounts, setMoodCounts] = useState({})
+  const [recommendations, setRecommendations] = useState([])
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true)
 
   useEffect(() => {
     const q = headerSearch.trim()
@@ -42,6 +48,29 @@ const UserProfilePage = () => {
 
   useEffect(() => {
     const load = async () => {
+      const getReviewsPage = async (userId, page = 0, size = 50) => {
+        if (isOwnProfile) {
+          return getMyReviews({ page, size, includeSpoilers: true })
+        }
+        return getUserReviewsByUserId(userId, { page, size, includeSpoilers: true })
+      }
+
+      const getAllReviews = async (userId) => {
+        const pageSize = 50
+        const firstPage = await getReviewsPage(userId, 0, pageSize)
+        const firstContent = Array.isArray(firstPage?.content) ? firstPage.content : []
+        const totalPages = Number(firstPage?.totalPages) || 1
+        if (totalPages <= 1) return firstContent
+
+        const restPages = await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) => getReviewsPage(userId, index + 1, pageSize)),
+        )
+
+        return firstContent.concat(
+          restPages.flatMap((page) => (Array.isArray(page?.content) ? page.content : [])),
+        )
+      }
+
       const currentProfile = isOwnProfile ? await getMyProfile() : await getUserProfileById(id)
       setProfile(currentProfile)
       setAboutMe(currentProfile.aboutMe || '')
@@ -71,31 +100,59 @@ const UserProfilePage = () => {
       })
       setGenreCounts(genres)
 
-      const moods = {}
       const collectedReviews = []
-      const reviewPages = await Promise.all(
-        allBooks.map((book) => getBookReviews(book.id, { page: 0, size: 20, includeSpoilers: true })),
-      )
-      reviewPages.forEach((page, index) => {
-        const relatedBook = allBooks[index]
-        page.content.forEach((review) => {
-          if (review.user?.id !== currentProfile.id) return
-          ;(review.mood || []).forEach((mood) => {
-            moods[mood] = (moods[mood] || 0) + 1
-          })
-          collectedReviews.push({
-            review,
-            bookId: relatedBook?.id,
-            bookTitle: relatedBook?.title || 'Untitled Book',
-            bookAuthor: relatedBook?.author || '',
-          })
+      const reviews = await getAllReviews(currentProfile.id)
+      const uniqueBookIds = [...new Set(reviews.map((review) => review.bookId).filter(Boolean))]
+      const reviewBooks = await Promise.all(uniqueBookIds.map((bookId) => getBookDetail(bookId)))
+      const booksById = new Map(reviewBooks.filter(Boolean).map((book) => [book.id, book]))
+
+      reviews.forEach((review) => {
+        const relatedBook = booksById.get(review.bookId)
+        collectedReviews.push({
+          review,
+          bookId: review.bookId,
+          bookTitle: relatedBook?.title || 'Untitled Book',
+          bookAuthor: relatedBook?.author || '',
         })
       })
-      setMoodCounts(moods)
       setMyReviews(
         collectedReviews
           .sort((a, b) => new Date(b.review?.createdAt || 0).getTime() - new Date(a.review?.createdAt || 0).getTime()),
       )
+
+      const topGenreNames = Object.entries(genres)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([genre]) => genre)
+
+      const ownedBookIds = new Set(allBooks.map((book) => book.id))
+      setRecommendationsLoading(true)
+      try {
+        const perGenreResponses = await Promise.all(topGenreNames.map((genre) => getBooksByGenre(genre, 4)))
+        const trendingBooks = await getTrendingBooks(12)
+        const assembled = []
+        const seenIds = new Set()
+
+        perGenreResponses.forEach((response, index) => {
+          const genre = topGenreNames[index]
+          const candidates = Array.isArray(response?.content) ? response.content : response
+          ;(candidates || []).forEach((book) => {
+            if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
+            seenIds.add(book.id)
+            assembled.push({ ...book, reason: `Because you enjoy ${genre}` })
+          })
+        })
+
+        ;(trendingBooks || []).forEach((book) => {
+          if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
+          seenIds.add(book.id)
+          assembled.push({ ...book, reason: 'Trending in the archive' })
+        })
+
+        setRecommendations(assembled.slice(0, 6))
+      } finally {
+        setRecommendationsLoading(false)
+      }
     }
     load()
   }, [id, isOwnProfile])
@@ -103,15 +160,25 @@ const UserProfilePage = () => {
   const topGenres = useMemo(
     () =>
       Object.entries(genreCounts)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .slice(0, 4),
     [genreCounts],
   )
 
+  const moodCounts = useMemo(() => {
+    const counts = {}
+    myReviews.forEach(({ review }) => {
+      ;(review?.mood || []).forEach((mood) => {
+        counts[mood] = (counts[mood] || 0) + 1
+      })
+    })
+    return counts
+  }, [myReviews])
+
   const topMoods = useMemo(
     () =>
       Object.entries(moodCounts)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .slice(0, 3)
         .map(([mood]) => mood),
     [moodCounts],
@@ -256,22 +323,83 @@ const UserProfilePage = () => {
           </div>
           <aside className="taste-card">
             <h3>Taste Profile</h3>
-            <div className="bars">
-              {topGenres.map(([genre, count], idx) => (
-                <div key={genre} className="bar-item">
-                  <div
-                    className={`bar-fill bar-${idx}`}
-                    style={{ height: `${Math.max(18, Math.round((count / maxGenre) * 110))}px` }}
-                  />
-                  <span>{genre}</span>
+            {topGenres.length > 0 ? (
+              <div className="bars">
+                {topGenres.map(([genre, count], idx) => (
+                  <div key={genre} className="bar-item">
+                    <div
+                      className={`bar-fill bar-${idx}`}
+                      style={{ height: `${Math.max(18, Math.round((count / maxGenre) * 110))}px` }}
+                    />
+                    <span>{genre}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="save-hint">Add books to your shelves to build your chart.</p>
+            )}
+            <p className="fingerprint-title">Reading fingerprint</p>
+            <div className="fingerprint">
+              {topMoods.length > 0
+                ? topMoods.map((mood) => <span key={mood}>{mood}</span>)
+                : <span>No mood data yet</span>}
+            </div>
+          </aside>
+        </section>
+
+        <section className="recommendations-section">
+          <div className="recommendations-header">
+            <div>
+              <p className="recommendations-kicker">Curated for your next chapter</p>
+              <h3>Recommendations</h3>
+            </div>
+            <Link className="recommendations-link" to="/search">
+              Explore all books
+            </Link>
+          </div>
+          {recommendationsLoading && (
+            <div className="recommendations-grid recommendations-grid--loading" aria-hidden="true">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={`rec-skeleton-${index}`} className="recommendation-card recommendation-card--skeleton">
+                  <div className="recommendation-card__cover-skeleton" />
+                  <div className="recommendation-card__line recommendation-card__line--title" />
+                  <div className="recommendation-card__line recommendation-card__line--subtitle" />
                 </div>
               ))}
             </div>
-            <p className="fingerprint-title">Reading fingerprint</p>
-            <div className="fingerprint">
-              {topMoods.map((mood) => <span key={mood}>{mood}</span>)}
+          )}
+          {!recommendationsLoading && recommendations.length === 0 && (
+            <div className="recommendations-empty">
+              <p>This shelf awaits its first story.</p>
+              <span>Read or review a few books to unlock tailored recommendations.</span>
             </div>
-          </aside>
+          )}
+          {!recommendationsLoading && recommendations.length > 0 && (
+            <div className="recommendations-grid">
+              {recommendations.map((book, index) => (
+                <MotionArticle
+                  key={book.id}
+                  className="recommendation-card"
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.25 }}
+                  transition={{ duration: 0.45, delay: index * 0.06, ease: 'easeOut' }}
+                  whileHover={{ y: -6, scale: 1.02 }}
+                  whileTap={{ scale: 0.985 }}
+                  onClick={() => navigate(`/books/${book.id}`)}
+                >
+                  <div className="recommendation-card__cover-wrap">
+                    <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                  </div>
+                  <div className="recommendation-card__body">
+                    <p className="recommendation-card__reason">{book.reason}</p>
+                    <h4>{book.title}</h4>
+                    <p>{book.author || 'Unknown author'}</p>
+                  </div>
+                </MotionArticle>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="shelf-section">
@@ -320,39 +448,41 @@ const UserProfilePage = () => {
           </div>
         </section>
 
-        {isOwnProfile && (
-          <section className="shelf-section reviews-section">
-            <div className="shelf-header">
-              <h3 className="reviews-title">My Reviews</h3>
-            </div>
-            {myReviews.length === 0 && <p className="reviews-empty">You have not written any reviews yet.</p>}
-            <div className="reviews-grid">
-              {myReviews.map((entry) => (
-                <article
-                  key={entry.review.id}
-                  className="review-entry"
-                  onClick={() => navigate(`/books/${entry.bookId}#review-${entry.review.id}`)}
-                >
-                  <div className="review-entry__top">
-                    <h4>{entry.bookTitle}</h4>
-                    <span className="review-entry__rating">{renderReviewStars(entry.review.rating)}</span>
+        <section className="shelf-section reviews-section">
+          <div className="shelf-header">
+            <h3 className="reviews-title">{isOwnProfile ? 'My Reviews' : `${profile.username}'s Reviews`}</h3>
+          </div>
+          {myReviews.length === 0 && (
+            <p className="reviews-empty">
+              {isOwnProfile ? 'You have not written any reviews yet.' : 'No public reviews yet.'}
+            </p>
+          )}
+          <div className="reviews-grid">
+            {myReviews.map((entry) => (
+              <article
+                key={entry.review.id}
+                className="review-entry"
+                onClick={() => navigate(`/books/${entry.bookId}#review-${entry.review.id}`)}
+              >
+                <div className="review-entry__top">
+                  <h4>{entry.bookTitle}</h4>
+                  <span className="review-entry__rating">{renderReviewStars(entry.review.rating)}</span>
+                </div>
+                <p className="review-entry__author">{entry.bookAuthor}</p>
+                <p className="review-entry__meta">{formatReviewDate(entry.review.createdAt)} · Helpful: {entry.review.helpfulCount || 0}</p>
+                {entry.review.whoIsItFor && (
+                  <p className="review-entry__for"><strong>Who this book is for:</strong> {entry.review.whoIsItFor}</p>
+                )}
+                {Array.isArray(entry.review.mood) && entry.review.mood.length > 0 && (
+                  <div className="review-entry__moods">
+                    {entry.review.mood.slice(0, 4).map((mood) => <span key={mood}>{mood}</span>)}
                   </div>
-                  <p className="review-entry__author">{entry.bookAuthor}</p>
-                  <p className="review-entry__meta">{formatReviewDate(entry.review.createdAt)} · Helpful: {entry.review.helpfulCount || 0}</p>
-                  {entry.review.whoIsItFor && (
-                    <p className="review-entry__for"><strong>Who this book is for:</strong> {entry.review.whoIsItFor}</p>
-                  )}
-                  {Array.isArray(entry.review.mood) && entry.review.mood.length > 0 && (
-                    <div className="review-entry__moods">
-                      {entry.review.mood.slice(0, 4).map((mood) => <span key={mood}>{mood}</span>)}
-                    </div>
-                  )}
-                  <p className="review-entry__verdict">{entry.review.verdict || entry.review.detailedReview || 'No verdict provided.'}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
+                )}
+                <p className="review-entry__verdict">{entry.review.verdict || entry.review.detailedReview || 'No verdict provided.'}</p>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
 
       <footer className="home-footer">

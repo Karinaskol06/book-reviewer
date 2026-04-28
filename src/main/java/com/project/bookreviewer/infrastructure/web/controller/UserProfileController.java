@@ -2,17 +2,23 @@ package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.request.UpdateAboutMeRequest;
 import com.project.bookreviewer.application.dto.response.AvatarUploadResponse;
+import com.project.bookreviewer.application.dto.response.ReviewResponse;
 import com.project.bookreviewer.application.dto.response.UserProfileResponse;
+import com.project.bookreviewer.application.mapper.ReviewMapper;
 import com.project.bookreviewer.application.mapper.UserMapper;
 import com.project.bookreviewer.application.service.ReviewService;
 import com.project.bookreviewer.application.service.UserBookStatusService;
 import com.project.bookreviewer.application.service.UserService;
 import com.project.bookreviewer.domain.model.ReadingStatus;
+import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import com.project.bookreviewer.infrastructure.storage.FileStorageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +33,7 @@ public class UserProfileController {
     private final UserBookStatusService  userBookStatusService;
     private final ReviewService reviewService;
     private final SecurityUtils securityUtils;
+    private final ReviewMapper reviewMapper;
     private final UserMapper userMapper;
 
     @GetMapping("/me")
@@ -67,6 +74,26 @@ public class UserProfileController {
         response.setBooksReviewed(reviewService.countReviewsByUser(userId));
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/me/reviews")
+    public ResponseEntity<Page<ReviewResponse>> getCurrentUserReviews(
+            @PageableDefault(size = 20) Pageable pageable,
+            @RequestParam(required = false, defaultValue = "true") boolean includeSpoilers
+    ) {
+        Long userId = securityUtils.getCurrentUserId();
+        Page<Review> reviews = reviewService.getReviewsByUser(userId, pageable);
+        return ResponseEntity.ok(reviews.map(review -> reviewMapper.toResponse(review, includeSpoilers)));
+    }
+
+    @GetMapping("/{userId}/reviews")
+    public ResponseEntity<Page<ReviewResponse>> getUserReviews(
+            @PathVariable Long userId,
+            @PageableDefault(size = 20) Pageable pageable,
+            @RequestParam(required = false, defaultValue = "true") boolean includeSpoilers
+    ) {
+        Page<Review> reviews = reviewService.getReviewsByUser(userId, pageable);
+        return ResponseEntity.ok(reviews.map(review -> reviewMapper.toResponse(review, includeSpoilers)));
     }
 
     @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

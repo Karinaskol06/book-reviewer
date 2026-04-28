@@ -33,6 +33,20 @@ export const getUserLibraryByUserId = async (userId, status) => {
   return response.data
 }
 
+export const getMyReviews = async ({ page = 0, size = 50, includeSpoilers = true } = {}) => {
+  const response = await api.get('/users/me/reviews', {
+    params: { page, size, includeSpoilers },
+  })
+  return response.data
+}
+
+export const getUserReviewsByUserId = async (userId, { page = 0, size = 50, includeSpoilers = true } = {}) => {
+  const response = await api.get(`/users/${userId}/reviews`, {
+    params: { page, size, includeSpoilers },
+  })
+  return response.data
+}
+
 export const exportReadingListPdf = async () => {
   const response = await api.get('/export/reading-list', { responseType: 'blob' })
   return response.data

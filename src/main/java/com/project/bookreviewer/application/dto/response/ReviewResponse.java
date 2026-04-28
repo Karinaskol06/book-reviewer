@@ -10,6 +10,7 @@ import java.util.Set;
 @Builder
 public class ReviewResponse {
     private Long id;
+    private Long bookId;
     private ReviewUserDto user;
     private Integer rating;
     private String verdict;

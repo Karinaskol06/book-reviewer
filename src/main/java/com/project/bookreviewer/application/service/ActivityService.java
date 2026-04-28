@@ -32,16 +32,7 @@ public class ActivityService {
         ActivityType type = mapStatusToActivityType(event.getNewStatus());
         if (type == null) return;
 
-        // Create activity for the actor's own feed
-        ActivityEvent selfEvent = ActivityEvent.builder()
-                .actorId(event.getUserId())
-                .targetUserId(event.getUserId())
-                .type(type)
-                .bookId(event.getBookId())
-                .build();
-        activityRepository.save(selfEvent);
-
-        // Also create events for all followers' feeds
+        // Create events for all followers' feeds
         List<Follow> followers = followRepository.findFollowers(event.getUserId());
         for (Follow follow : followers) {
             ActivityEvent followerEvent = ActivityEvent.builder()
@@ -58,16 +49,6 @@ public class ActivityService {
     @EventListener
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleReviewCreated(ReviewCreatedEvent event) {
-        // Actor's own feed
-        ActivityEvent selfEvent = ActivityEvent.builder()
-                .actorId(event.getReview().getUserId())
-                .targetUserId(event.getReview().getUserId())
-                .type(ActivityType.REVIEWED)
-                .bookId(event.getReview().getBookId())
-                .reviewId(event.getReview().getId())
-                .additionalData("{\"rating\": " + event.getReview().getRating() + "}")
-                .build();
-        activityRepository.save(selfEvent);
 
         // Followers' feeds
         List<Follow> followers = followRepository.findFollowers(event.getReview().getUserId());
@@ -93,14 +74,6 @@ public class ActivityService {
             return;
         }
 
-        ActivityEvent selfEvent = ActivityEvent.builder()
-                .actorId(actorUserId)
-                .targetUserId(actorUserId)
-                .type(ActivityType.BOOK_ADDED_TO_CATALOG)
-                .bookId(event.getBook().getId())
-                .build();
-        activityRepository.save(selfEvent);
-
         List<Follow> followers = followRepository.findFollowers(actorUserId);
         for (Follow follow : followers) {
             ActivityEvent followerEvent = ActivityEvent.builder()
@@ -116,13 +89,6 @@ public class ActivityService {
     @EventListener
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleFollowCreated(FollowCreatedEvent event) {
-        ActivityEvent ownFeedEvent = ActivityEvent.builder()
-                .actorId(event.getFollowerId())
-                .targetUserId(event.getFollowerId())
-                .type(ActivityType.FOLLOWED_USER)
-                .additionalData("{\"targetUserId\": " + event.getFollowingId() + "}")
-                .build();
-        activityRepository.save(ownFeedEvent);
 
         List<Follow> followers = followRepository.findFollowers(event.getFollowerId());
         for (Follow follow : followers) {

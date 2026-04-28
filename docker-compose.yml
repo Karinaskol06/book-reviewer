@@ -39,6 +39,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
     environment:
       DB_HOST: postgres
       DB_PORT: ${DB_PORT:-5432}

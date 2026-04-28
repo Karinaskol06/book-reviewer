@@ -40,6 +40,12 @@ public class ReviewRepositoryAdapter implements ReviewRepositoryPort {
     }
 
     @Override
+    public Page<Review> findByUserId(Long userId, Pageable pageable) {
+        return jpaReviewRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .map(this::mapToDomain);
+    }
+
+    @Override
     public Optional<Review> findByUserIdAndBookId(Long userId, Long bookId) {
         return jpaReviewRepository.findByUserIdAndBookId(userId, bookId)
                 .map(this::mapToDomain);

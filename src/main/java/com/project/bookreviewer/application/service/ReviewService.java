@@ -166,6 +166,11 @@ public class ReviewService {
         return reviewRepository.findByBookId(bookId, pageable);
     }
 
+    @Transactional(readOnly = true)
+    public Page<Review> getReviewsByUser(Long userId, Pageable pageable) {
+        return reviewRepository.findByUserId(userId, pageable);
+    }
+
     public Object[] getRatingStats(Long bookId) {
         return reviewRepository.getRatingStats(bookId);
     }

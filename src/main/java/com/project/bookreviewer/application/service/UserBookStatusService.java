@@ -4,7 +4,6 @@ import com.project.bookreviewer.domain.event.StatusChangedEvent;
 import com.project.bookreviewer.domain.model.ReadingStatus;
 import com.project.bookreviewer.domain.model.UserBookStatus;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
-import com.project.bookreviewer.infrastructure.persistence.entity.ReadingStatusEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;

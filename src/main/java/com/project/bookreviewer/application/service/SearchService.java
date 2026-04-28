@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -95,7 +96,7 @@ public class SearchService {
         try {
             BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
 
-            // Genre filter - books must have at least one of the selected genres
+            // Genre filter (converts the set to a list of FieldValue objects required by Elasticsearch)
             if (criteria.getGenres() != null && !criteria.getGenres().isEmpty()) {
                 boolBuilder.filter(f -> f.terms(t -> t
                         .field("genres")
@@ -110,7 +111,9 @@ public class SearchService {
             // Year range
             if (criteria.getYearFrom() != null) {
                 boolBuilder.filter(f -> f.range(r -> r
+                        //value of a field in an indexed document used for this range check
                         .field("publicationYear")
+                        //greater or equal
                         .gte(JsonData.of(criteria.getYearFrom()))
                 ));
             }
@@ -136,9 +139,10 @@ public class SearchService {
                 ));
             }
 
-            // Content safety - assume books have a "contentWarnings" field (list of strings)
+            // Content safety
             if (Boolean.TRUE.equals(criteria.getContentSafe())) {
                 boolBuilder.filter(f -> f.term(t -> t
+                        //loop through this "column"
                         .field("hasContentWarnings")
                         .value(false)
                 ));
@@ -148,16 +152,23 @@ public class SearchService {
             if (criteria.getSearchQuery() != null && !criteria.getSearchQuery().isBlank()) {
                 String normalizedSearch = criteria.getSearchQuery().trim();
                 String wildcardSearch = "*" + normalizedSearch.toLowerCase() + "*";
+                //full-text search
                 boolBuilder.must(m -> m.multiMatch(mm -> mm
                         .fields("title^2", "author^1.5", "description")
                         .query(normalizedSearch)
                 ));
-                boolBuilder.should(s -> s.wildcard(w -> w.field("title").value(wildcardSearch).caseInsensitive(true)));
-                boolBuilder.should(s -> s.wildcard(w -> w.field("author").value(wildcardSearch).caseInsensitive(true)));
-                boolBuilder.should(s -> s.wildcard(w -> w.field("description").value(wildcardSearch).caseInsensitive(true)));
-                boolBuilder.should(s -> s.wildcard(w -> w.field("genres").value(wildcardSearch).caseInsensitive(true)));
+                //wildcards queries for fuzzy searches
+                boolBuilder.should(s -> s.wildcard(w -> w.field("title")
+                        .value(wildcardSearch).caseInsensitive(true)));
+                boolBuilder.should(s -> s.wildcard(w -> w.field("author")
+                        .value(wildcardSearch).caseInsensitive(true)));
+                boolBuilder.should(s -> s.wildcard(w -> w.field("description")
+                        .value(wildcardSearch).caseInsensitive(true)));
+                boolBuilder.should(s -> s.wildcard(w -> w.field("genres")
+                        .value(wildcardSearch).caseInsensitive(true)));
             }
 
+            //wrapper (with pagination info)
             NativeQuery nativeQuery = NativeQuery.builder()
                     .withQuery(q -> q.bool(boolBuilder.build()))
                     .withPageable(pageable)
@@ -167,6 +178,7 @@ public class SearchService {
             List<BookResponse> books = mapToBookResponses(hits);
             return new PageImpl<>(books, pageable, hits.getTotalHits());
         } catch (Exception e) {
+            //fallback to postgres
             log.error("ES filter failed, falling back to DB filter", e);
             Page<Book> books = bookRepository.filterBooks(criteria, pageable);
             return books.map(bookMapper::toResponse);
@@ -192,17 +204,19 @@ public class SearchService {
                     .map(hit -> hit.getContent().getBookId())
                     .collect(Collectors.toSet());
 
-            // Fetch the actual BookDocuments for those liked books
+            // Fetch the actual BookDocuments for those liked books by book ids
             List<BookDocument> likedBooks = new ArrayList<>();
             for (Long bookId : likedBookIds) {
                 BookDocument doc = elasticsearchOperations.get(bookId.toString(), BookDocument.class);
                 if (doc != null) likedBooks.add(doc);
             }
 
-            // Collect genres and pacing from liked books
+            // Criteria for finding similar books
+            // Set of unique genre tags from liked books
             Set<String> likedGenres = likedBooks.stream()
                     .flatMap(book -> book.getGenres().stream())
                     .collect(Collectors.toSet());
+            // Set of unique pacing values
             Set<String> likedPacing = likedBooks.stream()
                     .map(BookDocument::getDominantPacing)
                     .filter(p -> p != null)
@@ -210,6 +224,11 @@ public class SearchService {
 
             // Build recommendation query: books with similar genres/pacing, excluding already read
             BoolQuery.Builder recBool = new BoolQuery.Builder();
+            //should = OR; book should match at least one of the liked genres or pacing types
+            if (likedGenres.isEmpty() && likedPacing.isEmpty()) {
+                return List.of();
+            }
+
             if (!likedGenres.isEmpty()) {
                 recBool.should(s -> s.terms(t -> t
                         .field("genres")
@@ -226,6 +245,7 @@ public class SearchService {
                         ))
                 ));
             }
+            //excludes the books already in liked set
             recBool.mustNot(m -> m.terms(t -> t
                     .field("id")
                     .terms(terms -> terms.value(
@@ -233,16 +253,22 @@ public class SearchService {
                     ))
             ));
 
+            // Wraps recommendations query into native
             NativeQuery recQuery = NativeQuery.builder()
                     .withQuery(q -> q.bool(recBool.build()))
                     .withMaxResults(limit)
                     .build();
 
+            // Query execution
             SearchHits<BookDocument> recHits = elasticsearchOperations.search(recQuery, BookDocument.class);
+
+            // Mapping search hits to book responses with explanation
             return recHits.stream()
                     .map(SearchHit::getContent)
                     .map(doc -> {
-                        BookResponse resp = bookMapper.toResponse(bookRepository.findById(doc.getId()).orElse(null));
+                        //for each hit info from postgres is queried
+                        BookResponse resp = bookMapper.toResponse(
+                                bookRepository.findById(doc.getId()).orElse(null));
                         if (resp != null) {
                             // Build explanation
                             List<String> reasons = new ArrayList<>();
@@ -277,7 +303,7 @@ public class SearchService {
                     if (book == null) return null;
                     return bookMapper.toResponse(book);
                 })
-                .filter(resp -> resp != null)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
