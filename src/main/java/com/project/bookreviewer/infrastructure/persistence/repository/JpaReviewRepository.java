@@ -13,6 +13,12 @@ import java.util.Optional;
 public interface JpaReviewRepository extends JpaRepository<ReviewEntity, Long> {
     Page<ReviewEntity> findByBookId(Long bookId, Pageable pageable);
     Page<ReviewEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    @Query("SELECT r FROM ReviewEntity r WHERE r.userId = :userId AND r.createdAt >= :since ORDER BY r.createdAt DESC")
+    List<ReviewEntity> findRecentByUserId(@Param("userId") Long userId,
+                                          @Param("since") java.time.LocalDateTime since,
+                                          Pageable pageable);
+
     Optional<ReviewEntity> findByUserIdAndBookId(Long userId, Long bookId);
     @Query("SELECT r.userId FROM ReviewEntity r WHERE r.id = :reviewId")
     Optional<Long> findUserIdByReviewId(@Param("reviewId") Long reviewId);

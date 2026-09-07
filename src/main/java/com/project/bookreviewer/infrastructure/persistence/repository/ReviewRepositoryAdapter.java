@@ -5,9 +5,11 @@ import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.entity.ReviewEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -43,6 +45,24 @@ public class ReviewRepositoryAdapter implements ReviewRepositoryPort {
     public Page<Review> findByUserId(Long userId, Pageable pageable) {
         return jpaReviewRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
                 .map(this::mapToDomain);
+    }
+
+    @Override
+    public List<Review> findRecentByUserId(Long userId, LocalDateTime since, int limit) {
+        return jpaReviewRepository.findRecentByUserId(userId, since, PageRequest.of(0, Math.max(limit, 1)))
+                .stream()
+                .map(this::mapToDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Review> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return jpaReviewRepository.findAllById(ids).stream()
+                .map(this::mapToDomain)
+                .collect(Collectors.toList());
     }
 
     @Override

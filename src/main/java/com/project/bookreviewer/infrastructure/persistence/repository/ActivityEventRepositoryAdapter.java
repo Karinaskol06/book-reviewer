@@ -28,6 +28,7 @@ public class ActivityEventRepositoryAdapter implements ActivityEventRepositoryPo
                 .bookId(event.getBookId())
                 .reviewId(event.getReviewId())
                 .additionalData(event.getAdditionalData())
+                .createdAt(event.getCreatedAt())
                 .build();
         ActivityEventEntity saved = jpaRepo.save(entity);
         return mapToDomain(saved);

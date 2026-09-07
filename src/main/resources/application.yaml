@@ -47,7 +47,7 @@ jwt:
 
 # Server Configuration
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:8081}
   error:
     include-message: always
     include-binding-errors: always
@@ -82,5 +82,5 @@ app:
       limit: 20
 
 elasticsearch:
-  host: localhost
-  port: 9200
+  host: ${ELASTICSEARCH_HOST:localhost}
+  port: ${ELASTICSEARCH_PORT:9200}

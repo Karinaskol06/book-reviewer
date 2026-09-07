@@ -20,6 +20,10 @@ public class UserBookStatusService {
     @Transactional
     public UserBookStatus setStatus(Long userId, Long bookId, ReadingStatus status) {
         Optional<UserBookStatus> existing = statusRepository.findByUserIdAndBookId(userId, bookId);
+        if (existing.isPresent() && existing.get().getStatus() == status) {
+            return existing.get();
+        }
+
         UserBookStatus entity;
         if (existing.isPresent()) {
             entity = UserBookStatus.builder()

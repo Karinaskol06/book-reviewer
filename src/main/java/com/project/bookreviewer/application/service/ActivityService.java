@@ -67,39 +67,13 @@ public class ActivityService {
     }
 
     @EventListener
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleBookCreated(BookCreatedEvent event) {
-        Long actorUserId = event.getActorUserId();
-        if (actorUserId == null) {
-            return;
-        }
-
-        List<Follow> followers = followRepository.findFollowers(actorUserId);
-        for (Follow follow : followers) {
-            ActivityEvent followerEvent = ActivityEvent.builder()
-                    .actorId(actorUserId)
-                    .targetUserId(follow.getFollowerId())
-                    .type(ActivityType.BOOK_ADDED_TO_CATALOG)
-                    .bookId(event.getBook().getId())
-                    .build();
-            activityRepository.save(followerEvent);
-        }
+        // Catalog adds are not fan-out to feeds (feed = reviews + shelf status only).
     }
 
     @EventListener
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleFollowCreated(FollowCreatedEvent event) {
-
-        List<Follow> followers = followRepository.findFollowers(event.getFollowerId());
-        for (Follow follow : followers) {
-            ActivityEvent followerEvent = ActivityEvent.builder()
-                    .actorId(event.getFollowerId())
-                    .targetUserId(follow.getFollowerId())
-                    .type(ActivityType.FOLLOWED_USER)
-                    .additionalData("{\"targetUserId\": " + event.getFollowingId() + "}")
-                    .build();
-            activityRepository.save(followerEvent);
-        }
+        // Follow relationships are not written as feed cards.
     }
 
     private ActivityType mapStatusToActivityType(ReadingStatus status) {

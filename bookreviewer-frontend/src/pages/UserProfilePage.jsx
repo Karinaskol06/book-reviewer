@@ -16,13 +16,19 @@ import {
   updateAboutMe,
   uploadAvatar,
 } from '../services/profileService.js'
+import {
+  followUser,
+  getFollowStats,
+  isFollowingUser,
+  unfollowUser,
+} from '../services/userService.js'
 import './UserProfilePage.css'
 
 const UserProfilePage = () => {
   const MotionArticle = motion.article
   const navigate = useNavigate()
   const { id } = useParams()
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const isOwnProfile = !id
 
   const [profile, setProfile] = useState(null)
@@ -38,6 +44,10 @@ const UserProfilePage = () => {
   const [genreCounts, setGenreCounts] = useState({})
   const [recommendations, setRecommendations] = useState([])
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
+  const [followStats, setFollowStats] = useState({ followers: 0, following: 0 })
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followBusy, setFollowBusy] = useState(false)
+  const [followError, setFollowError] = useState('')
 
   useEffect(() => {
     const q = headerSearch.trim()
@@ -74,6 +84,28 @@ const UserProfilePage = () => {
       const currentProfile = isOwnProfile ? await getMyProfile() : await getUserProfileById(id)
       setProfile(currentProfile)
       setAboutMe(currentProfile.aboutMe || '')
+
+      try {
+        const stats = await getFollowStats(currentProfile.id)
+        setFollowStats({
+          followers: Number(stats?.followers) || 0,
+          following: Number(stats?.following) || 0,
+        })
+      } catch {
+        setFollowStats({ followers: 0, following: 0 })
+      }
+
+      const viewingOwnAccount = isOwnProfile || String(currentProfile.id) === String(user?.userId)
+      if (!viewingOwnAccount) {
+        try {
+          setIsFollowing(await isFollowingUser(currentProfile.id))
+        } catch {
+          setIsFollowing(false)
+        }
+      } else {
+        setIsFollowing(false)
+      }
+      setFollowError('')
 
       const [readingStatuses, wantStatuses, readStatuses, allStatuses] = isOwnProfile
         ? await Promise.all([getUserLibrary('READING'), getUserLibrary('WANT_TO_READ'), getUserLibrary('READ'), getUserLibrary()])
@@ -155,7 +187,36 @@ const UserProfilePage = () => {
       }
     }
     load()
-  }, [id, isOwnProfile])
+  }, [id, isOwnProfile, user?.userId])
+
+  const viewingOwnAccount = isOwnProfile || String(profile?.id) === String(user?.userId)
+
+  const handleToggleFollow = async () => {
+    if (!profile?.id || followBusy || viewingOwnAccount) return
+    setFollowBusy(true)
+    setFollowError('')
+    try {
+      if (isFollowing) {
+        await unfollowUser(profile.id)
+        setIsFollowing(false)
+        setFollowStats((prev) => ({
+          ...prev,
+          followers: Math.max(0, (prev.followers || 0) - 1),
+        }))
+      } else {
+        await followUser(profile.id)
+        setIsFollowing(true)
+        setFollowStats((prev) => ({
+          ...prev,
+          followers: (prev.followers || 0) + 1,
+        }))
+      }
+    } catch {
+      setFollowError(isFollowing ? 'Could not unfollow. Try again.' : 'Could not follow. Try again.')
+    } finally {
+      setFollowBusy(false)
+    }
+  }
 
   const topGenres = useMemo(
     () =>
@@ -296,6 +357,20 @@ const UserProfilePage = () => {
             </label>
             <div>
               <h2>{profile.username}</h2>
+              {!viewingOwnAccount && (
+                <div className="profile-follow-row">
+                  <button
+                    type="button"
+                    className={`profile-follow-btn${isFollowing ? ' profile-follow-btn--following' : ''}`}
+                    onClick={handleToggleFollow}
+                    disabled={followBusy}
+                    aria-pressed={isFollowing}
+                  >
+                    {followBusy ? 'Please wait…' : isFollowing ? 'Unfollow' : 'Follow'}
+                  </button>
+                  {followError && <p className="save-hint save-hint--error">{followError}</p>}
+                </div>
+              )}
               <textarea
                 className="about"
                 value={aboutMe}
@@ -318,6 +393,8 @@ const UserProfilePage = () => {
                 <div><strong>{profile.booksRead || 0}</strong><span>Books read</span></div>
                 <div><strong>{profile.booksReviewed || 0}</strong><span>Reviews</span></div>
                 <div><strong>{profile.booksWantToRead || 0}</strong><span>Want to read</span></div>
+                <div><strong>{followStats.followers}</strong><span>Followers</span></div>
+                <div><strong>{followStats.following}</strong><span>Following</span></div>
               </div>
             </div>
           </div>

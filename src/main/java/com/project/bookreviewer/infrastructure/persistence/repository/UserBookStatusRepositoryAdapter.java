@@ -6,7 +6,10 @@ import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPor
 import com.project.bookreviewer.infrastructure.persistence.entity.ReadingStatusEntity;
 import com.project.bookreviewer.infrastructure.persistence.entity.UserBookStatusEntity;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -39,6 +42,13 @@ public class UserBookStatusRepositoryAdapter implements UserBookStatusRepository
     public List<UserBookStatus> findByUserId(Long userId) {
         return jpaRepo.findByUserId(userId).stream()
                 .map(this::mapToDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserBookStatus> findRecentByUserId(Long userId, LocalDateTime since, int limit) {
+        return jpaRepo.findRecentByUserId(userId, since, PageRequest.of(0, Math.max(limit, 1))).stream()
+                .map(this::mapToDomain)
+                .collect(Collectors.toList());
     }
 
     @Override

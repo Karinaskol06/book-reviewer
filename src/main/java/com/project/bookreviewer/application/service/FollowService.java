@@ -3,11 +3,16 @@ package com.project.bookreviewer.application.service;
 import com.project.bookreviewer.application.dto.response.FollowStats;
 import com.project.bookreviewer.application.dto.response.UserSearchItemDto;
 import com.project.bookreviewer.domain.event.FollowCreatedEvent;
-import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.ActivityEvent;
+import com.project.bookreviewer.domain.model.ActivityType;
 import com.project.bookreviewer.domain.model.Follow;
+import com.project.bookreviewer.domain.model.ReadingStatus;
+import com.project.bookreviewer.domain.model.Review;
+import com.project.bookreviewer.domain.model.UserBookStatus;
 import com.project.bookreviewer.domain.port.outbound.ActivityEventRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.FollowRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.config.FeedBackfillProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -15,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,13 +33,14 @@ public class FollowService {
     private final FeedBackfillProperties backfillProperties;
     private final ActivityEventRepositoryPort activityRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ReviewRepositoryPort reviewRepository;
+    private final UserBookStatusRepositoryPort statusRepository;
 
     @Transactional
     public void follow(Long followerId, Long followingId) {
         if (followerId.equals(followingId)) {
             throw new IllegalArgumentException("Cannot follow yourself");
         }
-        // Ensure both users exist
         userService.getUserById(followerId);
         userService.getUserById(followingId);
 
@@ -112,28 +120,70 @@ public class FollowService {
 
     private void backfillRecentActivities(Long followerId, Long followingId) {
         LocalDateTime since = LocalDateTime.now().minusDays(backfillProperties.getDays());
-        List<ActivityEvent> recentActivities = activityRepository.findRecentSelfActivities(
-                followingId, backfillProperties.getLimit(), since);
+        int limit = backfillProperties.getLimit();
 
-        for (ActivityEvent original : recentActivities) {
-            if (!activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndTypeAndCreatedAt(
-                    original.getActorId(),          // actor = followed user
-                    followerId,                     // target = the new follower
-                    original.getBookId(),
-                    original.getType(),
-                    original.getCreatedAt())) {
+        List<Review> reviews = reviewRepository.findRecentByUserId(followingId, since, limit);
+        List<UserBookStatus> statuses = statusRepository.findRecentByUserId(followingId, since, limit);
 
-                ActivityEvent cloned = ActivityEvent.builder()
-                        .actorId(original.getActorId())
-                        .targetUserId(followerId)   // now owned by follower
-                        .type(original.getType())
-                        .bookId(original.getBookId())
-                        .reviewId(original.getReviewId())
-                        .additionalData(original.getAdditionalData())
-                        .createdAt(original.getCreatedAt())  // preserve original timestamp
-                        .build();
-                activityRepository.save(cloned);
-            }
+        List<ActivityEvent> candidates = new ArrayList<>();
+        for (Review review : reviews) {
+            candidates.add(ActivityEvent.builder()
+                    .actorId(followingId)
+                    .targetUserId(followerId)
+                    .type(ActivityType.REVIEWED)
+                    .bookId(review.getBookId())
+                    .reviewId(review.getId())
+                    .additionalData("{\"rating\": " + review.getRating() + "}")
+                    .createdAt(review.getCreatedAt())
+                    .build());
         }
+        for (UserBookStatus status : statuses) {
+            ActivityType type = mapStatusToActivityType(status.getStatus());
+            if (type == null) {
+                continue;
+            }
+            candidates.add(ActivityEvent.builder()
+                    .actorId(followingId)
+                    .targetUserId(followerId)
+                    .type(type)
+                    .bookId(status.getBookId())
+                    .createdAt(status.getUpdatedAt())
+                    .build());
+        }
+
+        candidates.sort(Comparator.comparing(ActivityEvent::getCreatedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+
+        int saved = 0;
+        for (ActivityEvent candidate : candidates) {
+            if (saved >= limit) {
+                break;
+            }
+            if (candidate.getCreatedAt() == null) {
+                continue;
+            }
+            if (activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndTypeAndCreatedAt(
+                    candidate.getActorId(),
+                    candidate.getTargetUserId(),
+                    candidate.getBookId(),
+                    candidate.getType(),
+                    candidate.getCreatedAt())) {
+                continue;
+            }
+            activityRepository.save(candidate);
+            saved++;
+        }
+    }
+
+    private ActivityType mapStatusToActivityType(ReadingStatus status) {
+        if (status == null) {
+            return null;
+        }
+        return switch (status) {
+            case WANT_TO_READ -> ActivityType.WANT_TO_READ;
+            case READING -> ActivityType.STARTED_READING;
+            case READ -> ActivityType.FINISHED_READING;
+            case ABANDONED -> ActivityType.ABANDONED;
+        };
     }
 }

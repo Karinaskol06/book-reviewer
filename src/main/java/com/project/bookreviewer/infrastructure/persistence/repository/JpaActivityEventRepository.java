@@ -29,6 +29,7 @@ public interface JpaActivityEventRepository extends JpaRepository<ActivityEventE
 
     @Query("SELECT e FROM ActivityEventEntity e WHERE " +
             "e.targetUserId = :userId AND e.actorId <> :userId " +
+            "AND EXISTS (SELECT 1 FROM FollowEntity f WHERE f.followerId = :userId AND f.followingId = e.actorId) " +
             "ORDER BY e.createdAt DESC")
     Page<ActivityEventEntity> findFeedEvents(@Param("userId") Long userId, Pageable pageable);
 }
