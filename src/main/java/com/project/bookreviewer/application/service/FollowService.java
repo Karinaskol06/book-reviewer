@@ -80,7 +80,7 @@ public class FollowService {
                 .map(user -> UserSearchItemDto.builder()
                         .id(user.getId())
                         .username(user.getUsername())
-                        .avatarUrl(user.getAvatarUrl())
+                        .avatarUrl(userService.toPublicAvatarUrl(user.getAvatarUrl()))
                         .following(false)
                         .build())
                 .collect(Collectors.toList());
@@ -94,7 +94,7 @@ public class FollowService {
                 .map(user -> UserSearchItemDto.builder()
                         .id(user.getId())
                         .username(user.getUsername())
-                        .avatarUrl(user.getAvatarUrl())
+                        .avatarUrl(userService.toPublicAvatarUrl(user.getAvatarUrl()))
                         .following(true)
                         .build())
                 .collect(Collectors.toList());
@@ -112,7 +112,7 @@ public class FollowService {
                 .map(user -> UserSearchItemDto.builder()
                         .id(user.getId())
                         .username(user.getUsername())
-                        .avatarUrl(user.getAvatarUrl())
+                        .avatarUrl(userService.toPublicAvatarUrl(user.getAvatarUrl()))
                         .following(followRepository.existsByFollowerAndFollowing(currentUserId, user.getId()))
                         .build())
                 .collect(Collectors.toList());

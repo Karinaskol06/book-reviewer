@@ -22,9 +22,14 @@ spring:
     show-sql: ${JPA_SHOW_SQL:false}
     open-in-view: false
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
   web:
     resources:
-      static-locations: classpath:/static/,file:${app.upload.dir}/
+      static-locations: classpath:/static/,file:${app.storage.local.upload-dir}/
 
   jackson:
     default-property-inclusion: non_null
@@ -32,11 +37,6 @@ spring:
       write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: true
-
-  servlet:
-    multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
 
 # JWT Configuration
 jwt:
@@ -71,14 +71,27 @@ application:
 
 app:
   upload:
-    dir: ${UPLOAD_DIR:./uploads-book-reviewer}          # Base upload directory
+    dir: ${UPLOAD_DIR:./uploads-book-reviewer}
     avatar:
-      dir: ${AVATAR_DIR:avatars}           # Subdirectory for avatars
+      dir: ${AVATAR_DIR:avatars}
       max-size: 10MB
       allowed-types: image/jpeg,image/png,image/webp
+  storage:
+    type: ${STORAGE_TYPE:local} # local | s3
+    public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+    local:
+      upload-dir: ${UPLOAD_DIR:./uploads-book-reviewer}
+      public-prefix: /uploads-book-reviewer
+    s3:
+      bucket: ${AWS_S3_BUCKET:}
+      region: ${AWS_S3_REGION:eu-central-1}
+      endpoint: ${AWS_S3_ENDPOINT:}
+      access-key: ${AWS_ACCESS_KEY_ID:}
+      secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      path-style-access: ${AWS_S3_PATH_STYLE:false}
   feed:
     backfill:
-      days: 7      # backfill activities from last 7 days
+      days: 7
       limit: 20
 
 elasticsearch:

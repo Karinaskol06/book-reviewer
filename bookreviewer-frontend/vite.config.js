@@ -17,10 +17,6 @@ export default defineConfig({
         target: API_PROXY_TARGET,
         changeOrigin: true,
       },
-      '/avatars': {
-        target: API_PROXY_TARGET,
-        changeOrigin: true,
-      },
     },
   },
 })

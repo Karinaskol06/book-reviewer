@@ -58,3 +58,6 @@ dist-ssr
 .env.local
 .env.*.local
 .vscode/settings.json
+# Local upload binaries (persist keys/URLs in DB only)
+uploads-book-reviewer/
+
