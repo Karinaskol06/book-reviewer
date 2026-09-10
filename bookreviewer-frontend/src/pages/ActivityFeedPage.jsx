@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useInView } from 'react-intersection-observer'
 import { AnimatePresence, motion } from 'framer-motion'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
 import { getFeedPage } from '../services/feedService.js'
 import { followUser, searchUsersByUsername, unfollowUser } from '../services/userService.js'
@@ -225,10 +226,9 @@ const FeedSkeleton = () => (
 
 const ActivityFeedPage = () => {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const { ref, inView } = useInView({ rootMargin: '320px' })
 
-  const [headerSearch, setHeaderSearch] = useState('')
   const [activities, setActivities] = useState([])
   const [userSearch, setUserSearch] = useState('')
   const [userResults, setUserResults] = useState([])
@@ -273,13 +273,6 @@ const ActivityFeedPage = () => {
   }, [hasMore, inView, loadFeed, loading, loadingInitial, page])
 
   useEffect(() => {
-    const q = headerSearch.trim()
-    if (!q) return
-    const timer = setTimeout(() => navigate(`/search?query=${encodeURIComponent(q)}&page=0`), 350)
-    return () => clearTimeout(timer)
-  }, [headerSearch, navigate])
-
-  useEffect(() => {
     const query = userSearch.trim()
     if (!query) {
       setUserResults([])
@@ -317,32 +310,7 @@ const ActivityFeedPage = () => {
   const emptyState = useMemo(() => !loadingInitial && activities.length === 0 && !error, [activities.length, error, loadingInitial])
 
   return (
-    <main className="dashboard feed-page">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/search?page=0">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input
-          className="home-nav__search"
-          placeholder="Search the archive..."
-          value={headerSearch}
-          onChange={(event) => setHeaderSearch(event.target.value)}
-        />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>Logout</button>
-        </div>
-      </header>
-
+    <AppChrome className="feed-page">
       <section className="feed-hero">
         <motion.h2
           initial={{ opacity: 0, y: 12 }}
@@ -437,7 +405,7 @@ const ActivityFeedPage = () => {
         <div ref={ref} className="feed-observer" />
         {loading && !loadingInitial && <p className="feed-muted">Loading more updates...</p>}
       </section>
-    </main>
+    </AppChrome>
   )
 }
 

@@ -4,7 +4,6 @@ import com.project.bookreviewer.application.dto.request.CreateClubRequest;
 import com.project.bookreviewer.application.dto.request.UpdateClubRequest;
 import com.project.bookreviewer.application.dto.response.ClubMembershipResponse;
 import com.project.bookreviewer.application.dto.response.ClubResponse;
-import com.project.bookreviewer.application.mapper.ClubMapper;
 import com.project.bookreviewer.application.service.ReadingClubService;
 import com.project.bookreviewer.domain.model.ReadingClub;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
@@ -20,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/clubs")
@@ -27,9 +27,6 @@ import java.util.List;
 public class ReadingClubController {
     private final ReadingClubService clubService;
     private final SecurityUtils securityUtils;
-    private final ClubMapper clubMapper;
-
-    // Club CRUD
 
     @PostMapping
     public ResponseEntity<ClubResponse> createClub(@Valid @RequestBody CreateClubRequest request) {
@@ -61,12 +58,10 @@ public class ReadingClubController {
         return ResponseEntity.noContent().build();
     }
 
-    // Club Discovery
-
     @GetMapping
     public ResponseEntity<Page<ClubResponse>> getPublicClubs(
             @PageableDefault(size = 12, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Long userId = securityUtils.getCurrentUserId();
+        Long userId = securityUtils.getCurrentUserIdOrNull();
         return ResponseEntity.ok(clubService.getPublicClubs(pageable, userId));
     }
 
@@ -76,8 +71,6 @@ public class ReadingClubController {
         Long userId = securityUtils.getCurrentUserId();
         return ResponseEntity.ok(clubService.getUserClubs(userId, pageable));
     }
-
-    // Membership Management
 
     @PostMapping("/{clubId}/join")
     public ResponseEntity<Void> joinClub(@PathVariable Long clubId) {
@@ -95,44 +88,69 @@ public class ReadingClubController {
 
     @GetMapping("/{clubId}/members")
     public ResponseEntity<List<ClubMembershipResponse>> getClubMembers(@PathVariable Long clubId) {
-        return ResponseEntity.ok(clubService.getClubMembers(clubId));
+        Long userId = securityUtils.getCurrentUserIdOrNull();
+        return ResponseEntity.ok(clubService.getClubMembers(clubId, userId));
+    }
+
+    @GetMapping("/{clubId}/members/pending")
+    public ResponseEntity<List<ClubMembershipResponse>> getPendingMembers(@PathVariable Long clubId) {
+        Long userId = securityUtils.getCurrentUserId();
+        return ResponseEntity.ok(clubService.getPendingMembers(clubId, userId));
+    }
+
+    @PutMapping("/{clubId}/members/{userId}/approve")
+    public ResponseEntity<Void> approveMember(@PathVariable Long clubId, @PathVariable Long userId) {
+        clubService.approveMembership(clubId, securityUtils.getCurrentUserId(), userId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{clubId}/members/{userId}/reject")
+    public ResponseEntity<Void> rejectMember(@PathVariable Long clubId, @PathVariable Long userId) {
+        clubService.rejectMembership(clubId, securityUtils.getCurrentUserId(), userId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{clubId}/members/{userId}")
+    public ResponseEntity<Void> removeMember(@PathVariable Long clubId, @PathVariable Long userId) {
+        clubService.removeMember(clubId, securityUtils.getCurrentUserId(), userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{clubId}/members/{userId}/transfer")
+    public ResponseEntity<Void> transferOwnership(@PathVariable Long clubId, @PathVariable Long userId) {
+        clubService.transferOwnership(clubId, securityUtils.getCurrentUserId(), userId);
+        return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{clubId}/members/{userId}/promote")
-    public ResponseEntity<Void> promoteToModerator(
-            @PathVariable Long clubId,
-            @PathVariable Long userId) {
-        Long promoterId = securityUtils.getCurrentUserId();
-        clubService.promoteToModerator(clubId, promoterId, userId);
+    public ResponseEntity<Void> promoteToModerator(@PathVariable Long clubId, @PathVariable Long userId) {
+        clubService.promoteToModerator(clubId, securityUtils.getCurrentUserId(), userId);
         return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{clubId}/members/{userId}/demote")
-    public ResponseEntity<Void> demoteToMember(
-            @PathVariable Long clubId,
-            @PathVariable Long userId) {
-        Long demoterId = securityUtils.getCurrentUserId();
-        clubService.demoteToMember(clubId, demoterId, userId);
+    public ResponseEntity<Void> demoteToMember(@PathVariable Long clubId, @PathVariable Long userId) {
+        clubService.demoteToMember(clubId, securityUtils.getCurrentUserId(), userId);
         return ResponseEntity.ok().build();
     }
-
-    // Club Settings
 
     @PutMapping("/{clubId}/current-book")
     public ResponseEntity<Void> setCurrentBook(
             @PathVariable Long clubId,
             @RequestParam Long bookId) {
-        Long userId = securityUtils.getCurrentUserId();
-        clubService.setCurrentBook(clubId, userId, bookId);
+        clubService.setCurrentBook(clubId, securityUtils.getCurrentUserId(), bookId);
         return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{clubId}/next-meeting")
     public ResponseEntity<Void> setNextMeeting(
             @PathVariable Long clubId,
-            @RequestParam LocalDateTime meetingTime) {
-        Long userId = securityUtils.getCurrentUserId();
-        clubService.setNextMeeting(clubId, userId, meetingTime);
+            @RequestBody Map<String, Object> body) {
+        LocalDateTime meetingTime = body.get("meetingTime") != null
+                ? LocalDateTime.parse(body.get("meetingTime").toString())
+                : null;
+        String meetingLink = body.get("meetingLink") != null ? body.get("meetingLink").toString() : null;
+        clubService.setNextMeeting(clubId, securityUtils.getCurrentUserId(), meetingTime, meetingLink);
         return ResponseEntity.ok().build();
     }
 }

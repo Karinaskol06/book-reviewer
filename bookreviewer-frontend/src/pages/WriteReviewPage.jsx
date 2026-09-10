@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth.js'
+import { useNavigate, useParams } from 'react-router-dom'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import { createReview, getBookDetail, setBookStatus } from '../services/bookService.js'
 import './WriteReviewPage.css'
 
@@ -33,9 +33,7 @@ const warningOptions = [
 const WriteReviewPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
   const [book, setBook] = useState(null)
-  const [headerSearch, setHeaderSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     rating: 4,
@@ -58,13 +56,6 @@ const WriteReviewPage = () => {
     }
     load()
   }, [id])
-
-  useEffect(() => {
-    const q = headerSearch.trim()
-    if (!q) return
-    const timer = setTimeout(() => navigate(`/search?query=${encodeURIComponent(q)}&page=0`), 350)
-    return () => clearTimeout(timer)
-  }, [headerSearch, navigate])
 
   const stars = useMemo(() => '★'.repeat(form.rating) + '☆'.repeat(5 - form.rating), [form.rating])
 
@@ -100,31 +91,15 @@ const WriteReviewPage = () => {
   }
 
   if (!book) {
-    return <main className="dashboard"><p className="detail-loading">Loading review form...</p></main>
+    return (
+      <AppChrome>
+        <p className="detail-loading">Loading review form...</p>
+      </AppChrome>
+    )
   }
 
   return (
-    <main className="dashboard">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input className="home-nav__search" placeholder="Search the archive..." value={headerSearch} onChange={(e) => setHeaderSearch(e.target.value)} />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>Logout</button>
-        </div>
-      </header>
-
+    <AppChrome>
       <div className="home-content write-review-page">
         <form className="review-form-shell" onSubmit={submit}>
           <section className="review-book-head">
@@ -243,17 +218,7 @@ const WriteReviewPage = () => {
           </div>
         </form>
       </div>
-
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-    </main>
+    </AppChrome>
   )
 }
 

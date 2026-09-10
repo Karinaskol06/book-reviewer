@@ -15,6 +15,7 @@ public class ClubResponse {
     private Boolean isPrivate;
     private String coverImageUrl;
     private LocalDateTime nextMeetingAt;
+    private String meetingLink;
     private ReviewResponse.ReviewUserDto owner;
     private Long memberCount;
     private Long pendingCount;

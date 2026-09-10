@@ -14,4 +14,5 @@ public class CreateClubRequest {
     private Boolean isPrivate = false;
     private String coverImageUrl;
     private LocalDateTime nextMeetingAt;
+    private String meetingLink;
 }

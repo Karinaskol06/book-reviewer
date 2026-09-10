@@ -73,6 +73,7 @@ public class ReadingClubRepositoryAdapter implements ReadingClubRepositoryPort {
                 .isPrivate(domain.getIsPrivate())
                 .coverImageUrl(domain.getCoverImageUrl())
                 .nextMeetingAt(domain.getNextMeetingAt())
+                .meetingLink(domain.getMeetingLink())
                 .createdBy(domain.getCreatedBy())
                 .createdAt(domain.getCreatedAt())
                 .build();
@@ -88,6 +89,7 @@ public class ReadingClubRepositoryAdapter implements ReadingClubRepositoryPort {
                 .isPrivate(entity.getIsPrivate())
                 .coverImageUrl(entity.getCoverImageUrl())
                 .nextMeetingAt(entity.getNextMeetingAt())
+                .meetingLink(entity.getMeetingLink())
                 .createdBy(entity.getCreatedBy())
                 .createdAt(entity.getCreatedAt())
                 .build();

@@ -5,10 +5,8 @@ import com.project.bookreviewer.application.dto.response.UserProfileResponse;
 import com.project.bookreviewer.domain.model.Role;
 import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
-import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
 import org.mapstruct.Named;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -24,7 +22,7 @@ public abstract class UserMapper {
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "username", source = "user.username")
     @Mapping(target = "email", source = "user.email")
-    @Mapping(target = "avatarUrl", source = "user.avatarUrl")
+    @Mapping(target = "avatarUrl", source = "user.avatarUrl", qualifiedByName = "toPublicAvatarUrl")
     @Mapping(target = "type", constant = "Bearer")
     @Mapping(target = "token", source = "token")
     public abstract AuthResponse toAuthResponse(User user, String token);
@@ -34,17 +32,12 @@ public abstract class UserMapper {
     @Mapping(target = "booksWantToRead", ignore = true)
     @Mapping(target = "booksReading", ignore = true)
     @Mapping(target = "booksRead", ignore = true)
-    @Mapping(target = "avatarUrl", source = "avatarUrl")
+    @Mapping(target = "avatarUrl", source = "avatarUrl", qualifiedByName = "toPublicAvatarUrl")
     public abstract UserProfileResponse toProfileResponse(User user);
 
-    @AfterMapping
-    protected void resolveAuthAvatar(@MappingTarget AuthResponse response, User user) {
-        response.setAvatarUrl(objectStoragePort.toPublicUrl(user.getAvatarUrl()));
-    }
-
-    @AfterMapping
-    protected void resolveProfileAvatar(@MappingTarget UserProfileResponse response, User user) {
-        response.setAvatarUrl(objectStoragePort.toPublicUrl(user.getAvatarUrl()));
+    @Named("toPublicAvatarUrl")
+    protected String toPublicAvatarUrl(String storageKey) {
+        return objectStoragePort.toPublicUrl(storageKey);
     }
 
     @Named("rolesToStringSet")

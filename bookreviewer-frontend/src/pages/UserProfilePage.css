@@ -16,27 +16,33 @@
 
 .profile-main {
   display: grid;
-  grid-template-columns: 210px 1fr;
-  gap: 1rem;
+  grid-template-columns: 240px 1fr;
+  gap: 1.25rem;
+  align-items: start;
 }
 
 .avatar-upload {
   position: relative;
   cursor: pointer;
+  width: 240px;
+  height: 240px;
+  flex-shrink: 0;
 }
 
 .avatar-upload img {
-  width: 210px;
-  height: 270px;
-  object-fit:contain;
-  border-radius: 0.65rem;
-  margin-right: 0.5rem;
+  width: 240px;
+  height: 240px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  margin: 0;
+  border: 2px solid rgba(2, 40, 89, 0.08);
 }
 
 .avatar-upload span {
   position: absolute;
-  right: 0.4rem;
-  bottom: 0.4rem;
+  right: 0.55rem;
+  bottom: 0.55rem;
   background: #2c5273;
   color: #f2e0d0;
   border-radius: 999px;
@@ -47,9 +53,10 @@
 }
 
 .profile-main h2 {
-  margin: 0.35rem 0 0.75rem;
+  margin: 0 0 0.75rem;
   font-size: clamp(2.2rem, 2rem + 1.5vw, 3.9rem);
   font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1.1;
 }
 
 .subtitle {

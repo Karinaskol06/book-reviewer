@@ -1,8 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useLocation } from 'react-router-dom'
 import AuthLayout from './components/layout/AuthLayout.jsx'
 import ProtectedRoute from './components/routing/ProtectedRoute.jsx'
+import RedirectOnce from './components/routing/RedirectOnce.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import BookDetailPage from './pages/BookDetailPage.jsx'
 import AddBookPage from './pages/AddBookPage.jsx'
@@ -12,6 +12,8 @@ import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 import SearchResultsPage from './pages/SearchResultsPage.jsx'
 import ActivityFeedPage from './pages/ActivityFeedPage.jsx'
+import ClubsPage from './pages/ClubsPage.jsx'
+import ClubDetailPage from './pages/ClubDetailPage.jsx'
 import { useAuth } from './hooks/useAuth.js'
 
 function App() {
@@ -31,8 +33,9 @@ function App() {
         <Routes location={location}>
           <Route
             path="/"
-            element={<Navigate to={isAuthenticated ? '/dashboard' : '/auth/login'} replace />}
+            element={<RedirectOnce to={isAuthenticated ? '/dashboard' : '/auth/login'} />}
           />
+          <Route path="/login" element={<RedirectOnce to="/auth/login" />} />
           <Route path="/auth" element={<AuthLayout />}>
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />
@@ -58,6 +61,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <ActivityFeedPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clubs"
+            element={
+              <ProtectedRoute>
+                <ClubsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clubs/:clubId"
+            element={
+              <ProtectedRoute>
+                <ClubDetailPage />
               </ProtectedRoute>
             }
           />
@@ -101,7 +120,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<RedirectOnce to="/" />} />
         </Routes>
       </MotionDiv>
     </AnimatePresence>

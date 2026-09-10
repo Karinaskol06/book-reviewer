@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth.js'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import { resolveMediaUrl } from '../utils/media.js'
 import {
   clearBookStatus,
@@ -28,14 +28,12 @@ const BookDetailPage = () => {
   const { id } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
   const reviewPageSearchInProgress = useRef(false)
 
   const [book, setBook] = useState(null)
   const [reviewsPage, setReviewsPage] = useState({ content: [], totalPages: 0, number: 0 })
   const [reviewPage, setReviewPage] = useState(0)
   const [includeSpoilers, setIncludeSpoilers] = useState(false)
-  const [headerSearch, setHeaderSearch] = useState('')
   const [currentStatus, setCurrentStatus] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -45,16 +43,6 @@ const BookDetailPage = () => {
     const parsed = Number(hash.replace('#review-', ''))
     return Number.isFinite(parsed) ? parsed : null
   }, [location.hash])
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const query = headerSearch.trim()
-      if (query) {
-        navigate(`/search?query=${encodeURIComponent(query)}&page=0`)
-      }
-    }, 350)
-    return () => clearTimeout(timer)
-  }, [headerSearch, navigate])
 
   useEffect(() => {
     const loadBook = async () => {
@@ -154,43 +142,23 @@ const BookDetailPage = () => {
   }
 
   if (loading) {
-    return <main className="dashboard"><p className="detail-loading">Loading book details...</p></main>
+    return (
+      <AppChrome>
+        <p className="detail-loading">Loading book details...</p>
+      </AppChrome>
+    )
   }
 
   if (!book) {
-    return <main className="dashboard"><p className="detail-loading">Book not found.</p></main>
+    return (
+      <AppChrome>
+        <p className="detail-loading">Book not found.</p>
+      </AppChrome>
+    )
   }
 
   return (
-    <main className="dashboard">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input
-          className="home-nav__search"
-          type="search"
-          placeholder="Search the archive..."
-          value={headerSearch}
-          onChange={(event) => setHeaderSearch(event.target.value)}
-        />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>
-            Logout
-          </button>
-        </div>
-      </header>
-
+    <AppChrome>
       <div className="home-content">
         <section className="book-hero">
           <aside className="book-cover-col">
@@ -338,17 +306,7 @@ const BookDetailPage = () => {
           </button>
         </section>
       </div>
-
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-    </main>
+    </AppChrome>
   )
 }
 

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import './DashboardPage.css'
-import { useAuth } from '../hooks/useAuth.js'
 import { getBooksByGenre, getGenres, getTrendingBooks, searchBooks } from '../services/homeService.js'
 
 const renderStars = (rating = 0) => {
@@ -12,12 +12,10 @@ const renderStars = (rating = 0) => {
 }
 
 const DashboardPage = () => {
-  const MotionMain = motion.main
   const MotionSection = motion.section
   const MotionDiv = motion.div
   const MotionArticle = motion.article
   const MotionButton = motion.button
-  const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const shelfRef = useRef(null)
@@ -139,40 +137,7 @@ const DashboardPage = () => {
   }
 
   return (
-    <MotionMain
-      className="dashboard"
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: 'easeOut' }}
-    >
-      <header className="home-nav motion-surface">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/search?page=0">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <a href="#collections">Collections</a>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input
-          className="home-nav__search"
-          type="search"
-          placeholder="Search books..."
-          value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-        />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <MotionButton type="button" onClick={logout} whileTap={{ scale: 0.97 }}>
-            Logout
-          </MotionButton>
-        </div>
-      </header>
-
+    <AppChrome>
       <div className="home-content">
         <section className="hero motion-surface" onMouseMove={handleHeroMouseMove} onMouseLeave={() => setHeroTilt({ x: 0, y: 0 })}>
           <MotionDiv className="hero__copy" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
@@ -379,40 +344,7 @@ const DashboardPage = () => {
           </div>
         </MotionSection>
       </div>
-
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <a href="#trending">Library</a>
-          <a href="#collections">Collections</a>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-
-      <nav className="mobile-tabbar" aria-label="Mobile navigation">
-        <button type="button" onClick={() => navigate('/dashboard')} className="mobile-tabbar__item">
-          <span>🏠</span>
-          Home
-        </button>
-        <button type="button" onClick={() => navigate('/feed')} className="mobile-tabbar__item">
-          <span>📝</span>
-          Feed
-        </button>
-        <button type="button" onClick={() => navigate('/search?page=0')} className="mobile-tabbar__item mobile-tabbar__item--search">
-          <span>🔎</span>
-          Search
-        </button>
-        <button type="button" onClick={() => navigate('/books/new')} className="mobile-tabbar__item">
-          <span>➕</span>
-          Add
-        </button>
-        <button type="button" onClick={() => navigate('/profile')} className="mobile-tabbar__item">
-          <span>👤</span>
-          Profile
-        </button>
-      </nav>
-    </MotionMain>
+    </AppChrome>
   )
 }
 

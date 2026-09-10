@@ -28,4 +28,9 @@ public interface JpaPostInsightfulRepository extends JpaRepository<PostInsightfu
     @Transactional
     @Query("DELETE FROM PostInsightfulEntity i WHERE i.postId = :postId")
     void deleteByPostId(@Param("postId") Long postId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM PostInsightfulEntity i WHERE i.postId IN (SELECT p.id FROM ClubPostEntity p WHERE p.clubId = :clubId)")
+    void deleteByClubId(@Param("clubId") Long clubId);
 }
