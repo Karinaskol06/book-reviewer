@@ -42,8 +42,6 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000} # 24 hours in milliseconds
-  refresh-token:
-    expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days
 
 # Server Configuration
 server:

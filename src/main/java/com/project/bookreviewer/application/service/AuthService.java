@@ -57,7 +57,7 @@ public class AuthService implements AuthUseCase {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             return jwtService.generateToken(userDetails);
-        } catch (AuthenticationException e) {
+        } catch (org.springframework.security.core.AuthenticationException e) {
             throw new AuthenticationException("Invalid username or password");
         }
     }
