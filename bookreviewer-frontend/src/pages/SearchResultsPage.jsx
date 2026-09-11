@@ -167,7 +167,7 @@ const SearchResultsPage = () => {
                   <div className="result-card__cover">
                     <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
                   </div>
-                  <div>
+                  <div className="result-card__body">
                     <h4>{book.title}</h4>
                     <p className="author">
                       {book.author}

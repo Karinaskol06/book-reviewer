@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInView } from 'react-intersection-observer'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
 import { getFeedPage } from '../services/feedService.js'
@@ -81,155 +81,256 @@ const mapActivity = (activity, index) => {
       reviewSnippet?.detailedReview || activity?.reviewText || activity?.excerpt || '',
     whoIsItFor: reviewSnippet?.whoIsItFor || '',
     moods: Array.isArray(reviewSnippet?.mood) ? reviewSnippet.mood : [],
-    likes: Number(reviewSnippet?.helpfulCount ?? activity?.likesCount ?? activity?.likeCount ?? activity?.likes ?? 0),
-    comments: Number(book?.totalReviews ?? activity?.commentCount ?? activity?.commentsCount ?? activity?.comments ?? 0),
     targetUserId: targetUser?.id || activity?.targetUserId,
     targetUserName: targetUser?.username || 'Reader',
   }
 }
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 26, scale: 0.985 },
-  visible: { opacity: 1, y: 0, scale: 1 },
+const activityDedupeKey = (activity) => {
+  if (activity.reviewId) return `review:${activity.reviewId}`
+  if (activity.type === 'followed_user') {
+    return `follow:${activity.actorId}:${activity.targetUserId}:${activity.id}`
+  }
+  if (activity.id != null && String(activity.id).length > 0) return `id:${activity.id}`
+  return `${activity.type}:${activity.actorId}:${activity.bookId}:${activity.createdAtText}`
 }
 
-const FeedCard = ({ activity, onNavigate }) => {
-  const { ref: cardRef, inView: cardVisible } = useInView({ triggerOnce: true, threshold: 0.18 })
+const dedupeActivities = (list) => {
+  const seen = new Set()
+  return list.filter((item) => {
+    const key = activityDedupeKey(item)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+const activityVerb = (activity) => {
+  if (activity.type === 'review') return 'wrote a review'
+  if (activity.type === 'status_change') return 'finished reading'
+  if (activity.type === 'reading_intent') return `added to ${activity.status || 'reading list'}`
+  if (activity.type === 'followed_user') return `followed ${activity.targetUserName}`
+  if (activity.type === 'book_added') return 'added a book to the catalog'
+  return 'shared an update'
+}
+
+const FeedCard = ({ activity, onNavigate, reduceMotion }) => {
+  const { ref: cardRef, inView: cardVisible } = useInView({ triggerOnce: true, threshold: 0.12 })
+  const motionProps = reduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 14 },
+        animate: cardVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 },
+        transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+      }
+
+  if (activity.type === 'followed_user') {
+    return (
+      <motion.article
+        ref={cardRef}
+        className="feed-item feed-item--follow"
+        {...motionProps}
+      >
+        <button
+          type="button"
+          className="feed-item__avatar-btn"
+          onClick={() => activity.actorId && onNavigate(`/users/${activity.actorId}`)}
+          aria-label={`Open ${activity.actorName} profile`}
+        >
+          <img src={activity.actorAvatar} alt="" />
+        </button>
+        <p className="feed-item__follow-line">
+          <button
+            type="button"
+            className="feed-item__name-link"
+            onClick={() => activity.actorId && onNavigate(`/users/${activity.actorId}`)}
+          >
+            {activity.actorName}
+          </button>
+          {' '}started following{' '}
+          <button
+            type="button"
+            className="feed-item__name-link"
+            onClick={() => activity.targetUserId && onNavigate(`/users/${activity.targetUserId}`)}
+          >
+            {activity.targetUserName}
+          </button>
+          <span className="feed-item__time"> · {activity.createdAtText}</span>
+        </p>
+      </motion.article>
+    )
+  }
+
+  if (activity.type === 'review') {
+    return (
+      <motion.article
+        ref={cardRef}
+        className="feed-item feed-item--review"
+        {...motionProps}
+      >
+        <header className="feed-item__header">
+          <button
+            type="button"
+            className="feed-item__avatar-btn"
+            onClick={() => activity.actorId && onNavigate(`/users/${activity.actorId}`)}
+            aria-label={`Open ${activity.actorName} profile`}
+          >
+            <img src={activity.actorAvatar} alt="" />
+          </button>
+          <div>
+            <p className="feed-item__meta">
+              <strong>{activity.actorName}</strong> {activityVerb(activity)}
+            </p>
+            <p className="feed-item__time">{activity.createdAtText}</p>
+          </div>
+        </header>
+
+        <div className="feed-review-block">
+          <button
+            type="button"
+            className="feed-review-block__cover"
+            onClick={() => activity.bookId && onNavigate(`/books/${activity.bookId}`)}
+            aria-label={`Open ${activity.bookTitle}`}
+          >
+            <img src={activity.bookCover} alt="" />
+          </button>
+          <div className="feed-review-block__copy">
+            <h3>{activity.bookTitle}</h3>
+            {activity.bookAuthor && <p className="feed-item__author">{activity.bookAuthor}</p>}
+            {activity.detailedReview?.trim() ? (
+              <p className="feed-detailed-excerpt">{activity.detailedReview.trim()}</p>
+            ) : (
+              activity.verdict && (
+                <blockquote className="feed-pullquote">
+                  <span aria-hidden="true">“</span>
+                  {activity.verdict}
+                  <span aria-hidden="true">”</span>
+                </blockquote>
+              )
+            )}
+            {activity.whoIsItFor && (
+              <div className="feed-review-meta">
+                <p className="feed-review-meta__label">Who this is for</p>
+                <p>{activity.whoIsItFor}</p>
+              </div>
+            )}
+            {activity.moods.length > 0 && (
+              <div className="feed-moods" aria-label="Moods">
+                {activity.moods.slice(0, 4).map((mood) => (
+                  <span key={mood}>{mood}</span>
+                ))}
+              </div>
+            )}
+            {activity.reviewId && activity.bookId && (
+              <button
+                type="button"
+                className="feed-text-link"
+                onClick={() => onNavigate(`/books/${activity.bookId}#review-${activity.reviewId}`)}
+              >
+                Read full review
+              </button>
+            )}
+          </div>
+        </div>
+      </motion.article>
+    )
+  }
+
+  const primaryAction =
+    activity.type === 'reading_intent'
+      ? { label: 'Preview', path: activity.bookId ? `/books/${activity.bookId}` : null }
+      : activity.type === 'book_added'
+        ? { label: 'See book', path: activity.bookId ? `/books/${activity.bookId}` : null }
+        : { label: 'Open book', path: activity.bookId ? `/books/${activity.bookId}` : null }
 
   return (
     <motion.article
       ref={cardRef}
-      key={activity.id}
-      className={`feed-card feed-card--${activity.type}`}
-      variants={cardVariants}
-      initial="hidden"
-      animate={cardVisible ? 'visible' : 'hidden'}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className={`feed-item feed-item--compact feed-item--${activity.type}`}
+      {...motionProps}
     >
-      <div className="feed-card__header">
-        <motion.button
+      <header className="feed-item__header">
+        <button
           type="button"
-          className="feed-card__avatar-link"
+          className="feed-item__avatar-btn"
           onClick={() => activity.actorId && onNavigate(`/users/${activity.actorId}`)}
           aria-label={`Open ${activity.actorName} profile`}
-          whileTap={{ scale: 0.95 }}
         >
-          <img src={activity.actorAvatar} alt={activity.actorName} />
-        </motion.button>
+          <img src={activity.actorAvatar} alt="" />
+        </button>
         <div>
-          <p className="feed-card__meta">
-            <strong>{activity.actorName}</strong>{' '}
-            {activity.type === 'review' && 'wrote a new review'}
-            {activity.type === 'status_change' && 'finished reading'}
-            {activity.type === 'reading_intent' && `added to ${activity.status || 'reading list'}`}
-            {activity.type === 'followed_user' && `started following ${activity.targetUserName}`}
-            {activity.type === 'book_added' && 'added a book to catalog'}
+          <p className="feed-item__meta">
+            <strong>{activity.actorName}</strong> {activityVerb(activity)}
           </p>
-          <p className="feed-card__time">{activity.createdAtText}</p>
+          <p className="feed-item__time">{activity.createdAtText}</p>
+        </div>
+      </header>
+
+      <div className="feed-compact-body">
+        <button
+          type="button"
+          className="feed-compact-body__cover"
+          onClick={() => activity.bookId && onNavigate(`/books/${activity.bookId}`)}
+          aria-label={`Open ${activity.bookTitle}`}
+        >
+          <img src={activity.bookCover} alt="" />
+        </button>
+        <div>
+          <h3>{activity.bookTitle}</h3>
+          {activity.type === 'status_change' && (
+            <p className="feed-status-chip">{activity.status || 'Status updated'}</p>
+          )}
+          {activity.shortDescription && (
+            <p className="feed-item__desc">{activity.shortDescription}</p>
+          )}
+          {primaryAction.path && (
+            <button
+              type="button"
+              className="feed-text-link"
+              onClick={() => onNavigate(primaryAction.path)}
+            >
+              {primaryAction.label}
+            </button>
+          )}
         </div>
       </div>
-
-      {(activity.type === 'status_change' || activity.type === 'reading_intent' || activity.type === 'book_added') && (
-        <div className="feed-card__body">
-          <motion.img
-            src={activity.bookCover}
-            alt={activity.bookTitle}
-            onClick={() => activity.bookId && onNavigate(`/books/${activity.bookId}`)}
-            role={activity.bookId ? 'button' : undefined}
-            whileHover={{ scale: 1.015 }}
-            transition={{ duration: 0.2 }}
-          />
-          <div>
-            <h3>{activity.bookTitle}</h3>
-            {activity.type === 'status_change' && (
-              <p className="feed-card__status">{activity.status || 'Status updated'}</p>
-            )}
-            {(activity.type === 'reading_intent' || activity.type === 'book_added' || activity.type === 'status_change') && activity.shortDescription && (
-              <p className="feed-card__desc">{activity.shortDescription}</p>
-            )}
-            <div className="feed-card__actions">
-              {activity.type === 'reading_intent' && activity.bookId && (
-                <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => onNavigate(`/books/${activity.bookId}`)}>Preview</motion.button>
-              )}
-              {activity.type === 'book_added' && activity.bookId && (
-                <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => onNavigate(`/books/${activity.bookId}`)}>See book</motion.button>
-              )}
-              {activity.type === 'status_change' && activity.bookId && (
-                <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => onNavigate(`/books/${activity.bookId}`)}>Open book</motion.button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activity.type === 'review' && (
-        <div className="feed-review">
-          <h3>{activity.bookTitle}</h3>
-          {activity.bookAuthor && <p className="feed-card__author">{activity.bookAuthor}</p>}
-          {activity.verdict && <blockquote>"{activity.verdict}"</blockquote>}
-          {activity.whoIsItFor && (
-            <div className="feed-review__section">
-              <p>Who this is for</p>
-              <span>{activity.whoIsItFor}</span>
-            </div>
-          )}
-          {activity.moods.length > 0 && (
-            <div className="feed-review__moods">
-              {activity.moods.slice(0, 4).map((mood) => <span key={mood}>{mood}</span>)}
-            </div>
-          )}
-          <div className="feed-card__actions">
-            {activity.reviewId && activity.bookId && (
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                onClick={() => onNavigate(`/books/${activity.bookId}#review-${activity.reviewId}`)}
-              >
-                See full review
-              </motion.button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activity.type === 'followed_user' && (
-        <div className="feed-follow">
-          <p>{activity.actorName} started following {activity.targetUserName}.</p>
-          {activity.targetUserId && (
-            <motion.button whileTap={{ scale: 0.97 }} type="button" onClick={() => onNavigate(`/users/${activity.targetUserId}`)}>
-              See profile
-            </motion.button>
-          )}
-        </div>
-      )}
-
-      <footer className="feed-card__footer">
-        <span>♡ {activity.likes}</span>
-        <span>▢ {activity.comments}</span>
-      </footer>
     </motion.article>
   )
 }
 
 const FeedSkeleton = () => (
-  <div className="feed-skeleton-wrap" aria-hidden="true">
-    {Array.from({ length: 3 }).map((_, idx) => (
-      <div key={idx} className="feed-skeleton-card">
-        <div className="feed-skeleton-line feed-skeleton-line--title" />
-        <div className="feed-skeleton-line" />
-        <div className="feed-skeleton-line feed-skeleton-line--short" />
-        <div className="feed-skeleton-block" />
-      </div>
-    ))}
+  <div className="feed-columns feed-skeleton-wrap" aria-hidden="true">
+    <div className="feed-columns__col">
+      {Array.from({ length: 2 }).map((_, idx) => (
+        <div key={`L-${idx}`} className="feed-skeleton-card">
+          <div className="feed-skeleton-line feed-skeleton-line--title" />
+          <div className="feed-skeleton-line" />
+          <div className="feed-skeleton-line feed-skeleton-line--short" />
+          <div className="feed-skeleton-block" />
+        </div>
+      ))}
+    </div>
+    <div className="feed-columns__col">
+      {Array.from({ length: 2 }).map((_, idx) => (
+        <div key={`R-${idx}`} className="feed-skeleton-card">
+          <div className="feed-skeleton-line feed-skeleton-line--title" />
+          <div className="feed-skeleton-line" />
+          <div className="feed-skeleton-line feed-skeleton-line--short" />
+          <div className="feed-skeleton-block" />
+        </div>
+      ))}
+    </div>
   </div>
 )
 
 const ActivityFeedPage = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const reduceMotion = useReducedMotion()
   const { ref, inView } = useInView({ rootMargin: '320px' })
 
   const [activities, setActivities] = useState([])
+  const [findOpen, setFindOpen] = useState(false)
   const [userSearch, setUserSearch] = useState('')
   const [userResults, setUserResults] = useState([])
   const [searchingUsers, setSearchingUsers] = useState(false)
@@ -246,13 +347,15 @@ const ActivityFeedPage = () => {
     try {
       const raw = await getFeedPage({ page: targetPage, size: 6 })
       const { content, hasNext } = normalizeFeedResponse(raw)
-      const mapped = content
-        .map((entry, index) => mapActivity(entry, index))
-        .filter((entry) => {
-          if (!user?.userId) return true
-          return Number(entry.actorId) !== Number(user.userId)
-        })
-      setActivities((prev) => (targetPage === 0 ? mapped : [...prev, ...mapped]))
+      const mapped = dedupeActivities(
+        content
+          .map((entry, index) => mapActivity(entry, index))
+          .filter((entry) => {
+            if (!user?.userId) return true
+            return Number(entry.actorId) !== Number(user.userId)
+          }),
+      )
+      setActivities((prev) => dedupeActivities(targetPage === 0 ? mapped : [...prev, ...mapped]))
       setHasMore(hasNext && mapped.length > 0)
       setPage(targetPage)
     } catch {
@@ -302,109 +405,151 @@ const ActivityFeedPage = () => {
           ? { ...entry, following: !currentlyFollowing }
           : entry
       )))
-    } catch (error) {
-      console.error('Follow toggle failed', error)
+    } catch (followError) {
+      console.error('Follow toggle failed', followError)
     }
   }
 
-  const emptyState = useMemo(() => !loadingInitial && activities.length === 0 && !error, [activities.length, error, loadingInitial])
+  const emptyState = useMemo(
+    () => !loadingInitial && activities.length === 0 && !error,
+    [activities.length, error, loadingInitial],
+  )
+
+  const { leftColumn, rightColumn } = useMemo(() => {
+    const splitAt = Math.ceil(activities.length / 2)
+    return {
+      leftColumn: activities.slice(0, splitAt),
+      rightColumn: activities.slice(splitAt),
+    }
+  }, [activities])
+
+  const mastheadMotion = reduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 8 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.4, ease: 'easeOut' },
+      }
 
   return (
     <AppChrome className="feed-page">
-      <section className="feed-hero">
-        <motion.h2
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-        >
-          Reading Circle
-        </motion.h2>
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.06, ease: 'easeOut' }}
-        >
-          Dispatches from fellow archivists, curated for tonight&apos;s shelf.
-        </motion.p>
-        <div className="feed-user-search">
-          <input
-            type="search"
-            placeholder="Find users by username..."
-            value={userSearch}
-            onChange={(event) => setUserSearch(event.target.value)}
-          />
-          {searchingUsers && <p className="feed-user-search__muted">Searching users...</p>}
-          {!searchingUsers && userSearch.trim() && userResults.length === 0 && (
-            <p className="feed-user-search__muted">No users found.</p>
-          )}
-          <AnimatePresence>
-            {userResults.length > 0 && (
-              <motion.div
-                className="feed-user-search__list"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
+      <div className="feed-shell">
+        <section className="feed-masthead">
+          <div className="feed-masthead__row">
+            <motion.div className="feed-masthead__title-row" {...mastheadMotion}>
+              <h2>Reading Circle</h2>
+              <button
+                type="button"
+                className={`feed-find__toggle${findOpen ? ' is-open' : ''}`}
+                aria-expanded={findOpen}
+                aria-controls="feed-find-panel"
+                onClick={() => setFindOpen((prev) => !prev)}
               >
-                {userResults.map((searchUser) => (
-                  <motion.article
-                    key={searchUser.id}
-                    className="feed-user-search__item"
-                    whileHover={{ scale: 1.01 }}
-                  >
-                    <button
-                      type="button"
-                      className="feed-user-search__profile"
-                      onClick={() => navigate(`/users/${searchUser.id}`)}
-                    >
-                      <img src={resolveMediaUrl(searchUser.avatarUrl, '/user-stub.png')} alt={searchUser.username} />
-                      <span>{searchUser.username}</span>
-                    </button>
-                    <motion.button
-                      type="button"
-                      className="feed-user-search__follow"
-                      onClick={() => handleToggleFollow(searchUser.id, Boolean(searchUser.following))}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {searchUser.following ? 'Unfollow' : 'Follow'}
-                    </motion.button>
-                  </motion.article>
+                Find readers
+              </button>
+            </motion.div>
+            <p className="feed-lede">Updates from people you follow.</p>
+
+            <AnimatePresence initial={false}>
+              {findOpen && (
+                <motion.div
+                  id="feed-find-panel"
+                  className="feed-find__panel"
+                  initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={reduceMotion ? undefined : { opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22 }}
+                >
+                  <input
+                    type="search"
+                    placeholder="Search by username…"
+                    value={userSearch}
+                    onChange={(event) => setUserSearch(event.target.value)}
+                    autoFocus
+                  />
+                  {searchingUsers && <p className="feed-find__muted">Searching…</p>}
+                  {!searchingUsers && userSearch.trim() && userResults.length === 0 && (
+                    <p className="feed-find__muted">No users found.</p>
+                  )}
+                  {userResults.length > 0 && (
+                    <div className="feed-find__list">
+                      {userResults.map((searchUser) => (
+                        <article key={searchUser.id} className="feed-find__item">
+                          <button
+                            type="button"
+                            className="feed-find__profile"
+                            onClick={() => navigate(`/users/${searchUser.id}`)}
+                          >
+                            <img
+                              src={resolveMediaUrl(searchUser.avatarUrl, '/user-stub.png')}
+                              alt=""
+                            />
+                            <span>{searchUser.username}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="feed-find__follow"
+                            onClick={() => handleToggleFollow(searchUser.id, Boolean(searchUser.following))}
+                          >
+                            {searchUser.following ? 'Unfollow' : 'Follow'}
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </section>
+
+        <section className="feed-stream">
+          {loadingInitial && <FeedSkeleton />}
+          {error && (
+            <div className="feed-banner feed-error">
+              <p>{error}</p>
+              <button type="button" onClick={() => loadFeed(0)}>Retry</button>
+            </div>
+          )}
+          {emptyState && (
+            <div className="feed-banner feed-empty">
+              <p className="feed-empty__title">Your shelf is quiet</p>
+              <p>Follow readers to fill this timeline with reviews and reading updates.</p>
+              <button type="button" className="feed-find__toggle" onClick={() => setFindOpen(true)}>
+                Find readers
+              </button>
+            </div>
+          )}
+
+          {activities.length > 0 && (
+            <div className="feed-columns">
+              <div className="feed-columns__col">
+                {leftColumn.map((activity) => (
+                  <FeedCard
+                    key={activity.id}
+                    activity={activity}
+                    onNavigate={navigate}
+                    reduceMotion={reduceMotion}
+                  />
                 ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </section>
+              </div>
+              <div className="feed-columns__col">
+                {rightColumn.map((activity) => (
+                  <FeedCard
+                    key={activity.id}
+                    activity={activity}
+                    onNavigate={navigate}
+                    reduceMotion={reduceMotion}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-      <section className="feed-list">
-        {loadingInitial && <FeedSkeleton />}
-        {error && (
-          <div className="feed-error">
-            <p>{error}</p>
-            <button type="button" onClick={() => loadFeed(0)}>Retry</button>
-          </div>
-        )}
-        {emptyState && (
-          <div className="feed-empty">
-            <svg viewBox="0 0 240 140" aria-hidden="true" focusable="false">
-              <rect x="18" y="40" width="204" height="78" rx="10" fill="#f3ddbf" />
-              <rect x="30" y="51" width="180" height="8" rx="4" fill="#b89370" opacity="0.5" />
-              <rect x="30" y="67" width="150" height="8" rx="4" fill="#b89370" opacity="0.32" />
-              <rect x="30" y="84" width="120" height="8" rx="4" fill="#b89370" opacity="0.22" />
-              <circle cx="48" cy="25" r="9" fill="#85A663" />
-              <circle cx="72" cy="25" r="9" fill="#F2BDC1" />
-              <circle cx="96" cy="25" r="9" fill="#2C5273" />
-            </svg>
-            <p>This shelf awaits its first story. Follow readers to begin the manuscript.</p>
-          </div>
-        )}
-
-        {activities.map((activity) => (
-          <FeedCard key={activity.id} activity={activity} onNavigate={navigate} />
-        ))}
-
-        <div ref={ref} className="feed-observer" />
-        {loading && !loadingInitial && <p className="feed-muted">Loading more updates...</p>}
-      </section>
+          <div ref={ref} className="feed-observer" />
+          {loading && !loadingInitial && <p className="feed-muted">Loading more updates…</p>}
+        </section>
+      </div>
     </AppChrome>
   )
 }

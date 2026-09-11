@@ -19,17 +19,27 @@ import {
 } from '../services/profileService.js'
 import {
   followUser,
+  getFollowers,
+  getFollowing,
   getFollowStats,
   isFollowingUser,
   unfollowUser,
 } from '../services/userService.js'
 import './UserProfilePage.css'
 
+const STAT_MODAL_TITLES = {
+  read: 'Books read',
+  reviews: 'Reviews',
+  want: 'Want to read',
+  followers: 'Followers',
+  following: 'Following',
+}
+
 const UserProfilePage = () => {
   const MotionArticle = motion.article
   const navigate = useNavigate()
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
   const isOwnProfile = !id
 
   const [profile, setProfile] = useState(null)
@@ -48,6 +58,9 @@ const UserProfilePage = () => {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followBusy, setFollowBusy] = useState(false)
   const [followError, setFollowError] = useState('')
+  const [statsModal, setStatsModal] = useState(null)
+  const [modalPeople, setModalPeople] = useState([])
+  const [modalPeopleLoading, setModalPeopleLoading] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -76,6 +89,9 @@ const UserProfilePage = () => {
 
       const currentProfile = isOwnProfile ? await getMyProfile() : await getUserProfileById(id)
       setProfile(currentProfile)
+      if (isOwnProfile && currentProfile?.avatarUrl) {
+        updateUser?.({ avatarUrl: currentProfile.avatarUrl })
+      }
       setAboutMe(currentProfile.aboutMe || '')
 
       try {
@@ -138,6 +154,7 @@ const UserProfilePage = () => {
           bookId: review.bookId,
           bookTitle: relatedBook?.title || 'Untitled Book',
           bookAuthor: relatedBook?.author || '',
+          bookCover: relatedBook?.coverUrl || '',
         })
       })
       setMyReviews(
@@ -151,32 +168,39 @@ const UserProfilePage = () => {
         .map(([genre]) => genre)
 
       const ownedBookIds = new Set(allBooks.map((book) => book.id))
-      setRecommendationsLoading(true)
-      try {
-        const perGenreResponses = await Promise.all(topGenreNames.map((genre) => getBooksByGenre(genre, 4)))
-        const trendingBooks = await getTrendingBooks(12)
-        const assembled = []
-        const seenIds = new Set()
+      const isPersonalProfile = isOwnProfile || String(currentProfile.id) === String(user?.userId)
 
-        perGenreResponses.forEach((response, index) => {
-          const genre = topGenreNames[index]
-          const candidates = Array.isArray(response?.content) ? response.content : response
-          ;(candidates || []).forEach((book) => {
+      if (!isPersonalProfile) {
+        setRecommendations([])
+        setRecommendationsLoading(false)
+      } else {
+        setRecommendationsLoading(true)
+        try {
+          const perGenreResponses = await Promise.all(topGenreNames.map((genre) => getBooksByGenre(genre, 4)))
+          const trendingBooks = await getTrendingBooks(12)
+          const assembled = []
+          const seenIds = new Set()
+
+          perGenreResponses.forEach((response, index) => {
+            const genre = topGenreNames[index]
+            const candidates = Array.isArray(response?.content) ? response.content : response
+            ;(candidates || []).forEach((book) => {
+              if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
+              seenIds.add(book.id)
+              assembled.push({ ...book, reason: `Because you enjoy ${genre}` })
+            })
+          })
+
+          ;(trendingBooks || []).forEach((book) => {
             if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
             seenIds.add(book.id)
-            assembled.push({ ...book, reason: `Because you enjoy ${genre}` })
+            assembled.push({ ...book, reason: 'Trending in the archive' })
           })
-        })
 
-        ;(trendingBooks || []).forEach((book) => {
-          if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
-          seenIds.add(book.id)
-          assembled.push({ ...book, reason: 'Trending in the archive' })
-        })
-
-        setRecommendations(assembled.slice(0, 6))
-      } finally {
-        setRecommendationsLoading(false)
+          setRecommendations(assembled.slice(0, 6))
+        } finally {
+          setRecommendationsLoading(false)
+        }
       }
     }
     load()
@@ -265,6 +289,7 @@ const UserProfilePage = () => {
         const normalizedUrl = resolveMediaUrl(uploaded.avatarUrl)
         const cacheBusted = `${normalizedUrl}${normalizedUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
         setProfile((prev) => ({ ...prev, avatarUrl: cacheBusted }))
+        updateUser?.({ avatarUrl: uploaded.avatarUrl || cacheBusted })
         setAvatarSaveState('saved')
         setTimeout(() => {
           setAvatarSaveState('idle')
@@ -288,6 +313,41 @@ const UserProfilePage = () => {
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const closeStatsModal = () => {
+    setStatsModal(null)
+    setModalPeople([])
+    setModalPeopleLoading(false)
+  }
+
+  const openStatsModal = async (type) => {
+    setStatsModal(type)
+    if (type !== 'followers' && type !== 'following') {
+      setModalPeople([])
+      return
+    }
+    if (!profile?.id) return
+    setModalPeopleLoading(true)
+    try {
+      const people = type === 'followers'
+        ? await getFollowers(profile.id)
+        : await getFollowing(profile.id)
+      setModalPeople(Array.isArray(people) ? people : [])
+    } catch {
+      setModalPeople([])
+    } finally {
+      setModalPeopleLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!statsModal) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') closeStatsModal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [statsModal])
 
   if (!profile) {
     return (
@@ -362,11 +422,26 @@ const UserProfilePage = () => {
                 <p className="save-hint save-hint--error">File is too large. Max avatar size is 10MB.</p>
               )}
               <div className="stats">
-                <div><strong>{profile.booksRead || 0}</strong><span>Books read</span></div>
-                <div><strong>{profile.booksReviewed || 0}</strong><span>Reviews</span></div>
-                <div><strong>{profile.booksWantToRead || 0}</strong><span>Want to read</span></div>
-                <div><strong>{followStats.followers}</strong><span>Followers</span></div>
-                <div><strong>{followStats.following}</strong><span>Following</span></div>
+                <button type="button" className="stats__item" onClick={() => openStatsModal('read')}>
+                  <strong>{profile.booksRead || 0}</strong>
+                  <span>Books read</span>
+                </button>
+                <button type="button" className="stats__item" onClick={() => openStatsModal('reviews')}>
+                  <strong>{profile.booksReviewed || 0}</strong>
+                  <span>Reviews</span>
+                </button>
+                <button type="button" className="stats__item" onClick={() => openStatsModal('want')}>
+                  <strong>{profile.booksWantToRead || 0}</strong>
+                  <span>Want to read</span>
+                </button>
+                <button type="button" className="stats__item" onClick={() => openStatsModal('followers')}>
+                  <strong>{followStats.followers}</strong>
+                  <span>Followers</span>
+                </button>
+                <button type="button" className="stats__item" onClick={() => openStatsModal('following')}>
+                  <strong>{followStats.following}</strong>
+                  <span>Following</span>
+                </button>
               </div>
             </div>
           </div>
@@ -396,60 +471,62 @@ const UserProfilePage = () => {
           </aside>
         </section>
 
-        <section className="recommendations-section">
-          <div className="recommendations-header">
-            <div>
-              <p className="recommendations-kicker">Curated for your next chapter</p>
-              <h3>Recommendations</h3>
+        {viewingOwnAccount && (
+          <section className="recommendations-section">
+            <div className="recommendations-header">
+              <div>
+                <p className="recommendations-kicker">Curated for your next chapter</p>
+                <h3>Recommendations</h3>
+              </div>
+              <Link className="recommendations-link" to="/search">
+                Explore all books
+              </Link>
             </div>
-            <Link className="recommendations-link" to="/search">
-              Explore all books
-            </Link>
-          </div>
-          {recommendationsLoading && (
-            <div className="recommendations-grid recommendations-grid--loading" aria-hidden="true">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={`rec-skeleton-${index}`} className="recommendation-card recommendation-card--skeleton">
-                  <div className="recommendation-card__cover-skeleton" />
-                  <div className="recommendation-card__line recommendation-card__line--title" />
-                  <div className="recommendation-card__line recommendation-card__line--subtitle" />
-                </div>
-              ))}
-            </div>
-          )}
-          {!recommendationsLoading && recommendations.length === 0 && (
-            <div className="recommendations-empty">
-              <p>This shelf awaits its first story.</p>
-              <span>Read or review a few books to unlock tailored recommendations.</span>
-            </div>
-          )}
-          {!recommendationsLoading && recommendations.length > 0 && (
-            <div className="recommendations-grid">
-              {recommendations.map((book, index) => (
-                <MotionArticle
-                  key={book.id}
-                  className="recommendation-card"
-                  initial={{ opacity: 0, y: 24 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.25 }}
-                  transition={{ duration: 0.45, delay: index * 0.06, ease: 'easeOut' }}
-                  whileHover={{ y: -6, scale: 1.02 }}
-                  whileTap={{ scale: 0.985 }}
-                  onClick={() => navigate(`/books/${book.id}`)}
-                >
-                  <div className="recommendation-card__cover-wrap">
-                    <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+            {recommendationsLoading && (
+              <div className="recommendations-grid recommendations-grid--loading" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={`rec-skeleton-${index}`} className="recommendation-card recommendation-card--skeleton">
+                    <div className="recommendation-card__cover-skeleton" />
+                    <div className="recommendation-card__line recommendation-card__line--title" />
+                    <div className="recommendation-card__line recommendation-card__line--subtitle" />
                   </div>
-                  <div className="recommendation-card__body">
-                    <p className="recommendation-card__reason">{book.reason}</p>
-                    <h4>{book.title}</h4>
-                    <p>{book.author || 'Unknown author'}</p>
-                  </div>
-                </MotionArticle>
-              ))}
-            </div>
-          )}
-        </section>
+                ))}
+              </div>
+            )}
+            {!recommendationsLoading && recommendations.length === 0 && (
+              <div className="recommendations-empty">
+                <p>This shelf awaits its first story.</p>
+                <span>Read or review a few books to unlock tailored recommendations.</span>
+              </div>
+            )}
+            {!recommendationsLoading && recommendations.length > 0 && (
+              <div className="recommendations-grid">
+                {recommendations.map((book, index) => (
+                  <MotionArticle
+                    key={book.id}
+                    className="recommendation-card"
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.25 }}
+                    transition={{ duration: 0.45, delay: index * 0.06, ease: 'easeOut' }}
+                    whileHover={{ y: -6, scale: 1.02 }}
+                    whileTap={{ scale: 0.985 }}
+                    onClick={() => navigate(`/books/${book.id}`)}
+                  >
+                    <div className="recommendation-card__cover-wrap">
+                      <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                    </div>
+                    <div className="recommendation-card__body">
+                      <p className="recommendation-card__reason">{book.reason}</p>
+                      <h4>{book.title}</h4>
+                      <p>{book.author || 'Unknown author'}</p>
+                    </div>
+                  </MotionArticle>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="shelf-section">
           <div className="shelf-header">
@@ -507,32 +584,179 @@ const UserProfilePage = () => {
             </p>
           )}
           <div className="reviews-grid">
-            {myReviews.map((entry) => (
-              <article
-                key={entry.review.id}
-                className="review-entry"
-                onClick={() => navigate(`/books/${entry.bookId}#review-${entry.review.id}`)}
-              >
-                <div className="review-entry__top">
-                  <h4>{entry.bookTitle}</h4>
-                  <span className="review-entry__rating">{renderReviewStars(entry.review.rating)}</span>
-                </div>
-                <p className="review-entry__author">{entry.bookAuthor}</p>
-                <p className="review-entry__meta">{formatReviewDate(entry.review.createdAt)} · Helpful: {entry.review.helpfulCount || 0}</p>
-                {entry.review.whoIsItFor && (
-                  <p className="review-entry__for"><strong>Who this book is for:</strong> {entry.review.whoIsItFor}</p>
-                )}
-                {Array.isArray(entry.review.mood) && entry.review.mood.length > 0 && (
-                  <div className="review-entry__moods">
-                    {entry.review.mood.slice(0, 4).map((mood) => <span key={mood}>{mood}</span>)}
+            {myReviews.map((entry) => {
+              const verdictText = entry.review.verdict || entry.review.detailedReview || ''
+              return (
+                <article
+                  key={entry.review.id}
+                  className="review-entry"
+                  onClick={() => navigate(`/books/${entry.bookId}#review-${entry.review.id}`)}
+                >
+                  <div className="review-entry__cover">
+                    <img
+                      src={resolveMediaUrl(entry.bookCover, '/home-book.jpg')}
+                      alt=""
+                    />
                   </div>
-                )}
-                <p className="review-entry__verdict">{entry.review.verdict || entry.review.detailedReview || 'No verdict provided.'}</p>
-              </article>
-            ))}
+                  <div className="review-entry__body">
+                    <div className="review-entry__top">
+                      <div className="review-entry__titles">
+                        <h4>{entry.bookTitle}</h4>
+                        {entry.bookAuthor && <p className="review-entry__author">{entry.bookAuthor}</p>}
+                      </div>
+                      <span className="review-entry__rating" aria-label={`${entry.review.rating || 0} stars`}>
+                        {renderReviewStars(entry.review.rating)}
+                      </span>
+                    </div>
+
+                    {verdictText && (
+                      <blockquote className="review-entry__verdict">
+                        “{verdictText}”
+                      </blockquote>
+                    )}
+
+                    {entry.review.whoIsItFor && (
+                      <div className="review-entry__for">
+                        <p className="review-entry__for-label">Who this is for</p>
+                        <p className="review-entry__for-text">{entry.review.whoIsItFor}</p>
+                      </div>
+                    )}
+
+                    {Array.isArray(entry.review.mood) && entry.review.mood.length > 0 && (
+                      <div className="review-entry__moods">
+                        {entry.review.mood.slice(0, 4).map((mood) => (
+                          <span key={mood}>{mood}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="review-entry__meta">
+                      {formatReviewDate(entry.review.createdAt)}
+                      <span aria-hidden="true"> · </span>
+                      Helpful {entry.review.helpfulCount || 0}
+                    </p>
+                  </div>
+                </article>
+              )
+            })}
           </div>
         </section>
       </div>
+
+      {statsModal && (
+        <div
+          className="profile-stats-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-stats-modal-title"
+          onClick={closeStatsModal}
+        >
+          <div
+            className="profile-stats-modal__panel"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="profile-stats-modal__header">
+              <h3 id="profile-stats-modal-title">{STAT_MODAL_TITLES[statsModal]}</h3>
+              <button type="button" className="profile-stats-modal__close" onClick={closeStatsModal} aria-label="Close">
+                ×
+              </button>
+            </div>
+
+            {statsModal === 'read' && (
+              <div className="profile-stats-modal__list">
+                {readBooks.length === 0 && <p className="profile-stats-modal__empty">No books marked as read yet.</p>}
+                {readBooks.map((book) => (
+                  <button
+                    key={book.id}
+                    type="button"
+                    className="profile-stats-modal__book"
+                    onClick={() => {
+                      closeStatsModal()
+                      navigate(`/books/${book.id}`)
+                    }}
+                  >
+                    <img src={book.coverUrl || '/home-book.jpg'} alt="" />
+                    <span>
+                      <strong>{book.title}</strong>
+                      <em>{book.author || 'Unknown author'}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {statsModal === 'want' && (
+              <div className="profile-stats-modal__list">
+                {wantToReadBooks.length === 0 && <p className="profile-stats-modal__empty">Want-to-read shelf is empty.</p>}
+                {wantToReadBooks.map((book) => (
+                  <button
+                    key={book.id}
+                    type="button"
+                    className="profile-stats-modal__book"
+                    onClick={() => {
+                      closeStatsModal()
+                      navigate(`/books/${book.id}`)
+                    }}
+                  >
+                    <img src={book.coverUrl || '/home-book.jpg'} alt="" />
+                    <span>
+                      <strong>{book.title}</strong>
+                      <em>{book.author || 'Unknown author'}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {statsModal === 'reviews' && (
+              <div className="profile-stats-modal__list">
+                {myReviews.length === 0 && <p className="profile-stats-modal__empty">No reviews yet.</p>}
+                {myReviews.map((entry) => (
+                  <button
+                    key={entry.review.id}
+                    type="button"
+                    className="profile-stats-modal__book"
+                    onClick={() => {
+                      closeStatsModal()
+                      navigate(`/books/${entry.bookId}#review-${entry.review.id}`)
+                    }}
+                  >
+                    <span>
+                      <strong>{entry.bookTitle}</strong>
+                      <em>{entry.bookAuthor || entry.review.verdict || 'Open review'}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {(statsModal === 'followers' || statsModal === 'following') && (
+              <div className="profile-stats-modal__list">
+                {modalPeopleLoading && <p className="profile-stats-modal__empty">Loading…</p>}
+                {!modalPeopleLoading && modalPeople.length === 0 && (
+                  <p className="profile-stats-modal__empty">
+                    {statsModal === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
+                  </p>
+                )}
+                {!modalPeopleLoading && modalPeople.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className="profile-stats-modal__person"
+                    onClick={() => {
+                      closeStatsModal()
+                      navigate(String(person.id) === String(user?.userId) ? '/profile' : `/users/${person.id}`)
+                    }}
+                  >
+                    <img src={resolveMediaUrl(person.avatarUrl, '/user-stub.png')} alt="" />
+                    <strong>{person.username}</strong>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </AppChrome>
   )
 }

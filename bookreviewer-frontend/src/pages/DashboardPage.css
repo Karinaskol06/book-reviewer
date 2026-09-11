@@ -1,6 +1,6 @@
 .dashboard {
   min-height: 100vh;
-  background: #fbecd7;
+  background: #fdf4e6;
   color: #022859;
   padding-bottom: 0;
 }
@@ -22,7 +22,7 @@
   align-items: center;
   justify-content: flex-start;
   gap: 1.6rem;
-  padding: 1.8rem 2.2rem;
+  padding: 1.15rem 2.2rem;
   background: var(--chrome-header-bg);
   border: 1px solid rgba(2, 40, 89, 0.08);
   box-shadow: 0 10px 24px rgba(47, 78, 80, 0.08);
@@ -31,21 +31,21 @@
 
 .home-nav h1,
 .home-footer h2 {
-  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  font-size: 2rem;
-  margin: 0;
-  letter-spacing: 0.01em;
-}
-
-.home-nav h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  font-family: 'Amiri', Georgia, 'Times New Roman', serif;
+  font-size: 1.9rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
   line-height: 1;
   min-height: 2.2rem;
+  color: #01021f;
 }
 
-.home-nav nav {
+.home-nav nav,
+.home-footer nav {
   display: flex;
   gap: 1.3rem;
   align-items: center;
@@ -124,12 +124,15 @@
   align-items: center;
   justify-content: center;
   background: #f7efe2;
+  overflow: hidden;
+  padding: 0;
 }
 
-.home-nav__profile svg {
-  width: 1.2rem;
-  height: 1.2rem;
-  fill: currentColor;
+.home-nav__profile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .hero {
@@ -181,7 +184,7 @@
 
 .hero__tags span {
   font-size: 0.78rem;
-  background: rgba(133, 166, 99, 0.16);
+  background: rgba(116, 146, 131, 0.16);
   border-radius: 999px;
   padding: 0.3rem 0.7rem;
   color: #2c5273;
@@ -439,7 +442,7 @@
 .skeleton-card,
 .skeleton-panel {
   border-radius: 1rem;
-  background: linear-gradient(120deg, rgba(242, 189, 193, 0.22), rgba(133, 166, 99, 0.18), rgba(242, 189, 193, 0.22));
+  background: linear-gradient(120deg, rgba(242, 189, 193, 0.22), rgba(116, 146, 131, 0.18), rgba(242, 189, 193, 0.22));
   background-size: 200% 200%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
@@ -514,7 +517,7 @@
 }
 
 .collection-card--0 {
-  background: rgba(133, 166, 99, 0.44);
+  background: rgba(116, 146, 131, 0.44);
 }
 
 .collection-card--1 {
@@ -579,22 +582,19 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 1.3rem;
-  padding: 1.6rem 2rem;
-  background: var(--chrome-footer-bg);
+  gap: 1.6rem;
+  padding: 1.15rem 2.2rem;
+  background: var(--chrome-header-bg);
+  border: 1px solid rgba(2, 40, 89, 0.08);
+  box-shadow: 0 10px 24px rgba(47, 78, 80, 0.08);
   border-radius: 0;
 }
 
-.home-footer nav {
-  display: flex;
-  gap: 1.15rem;
-  margin-right: auto;
-}
-
 .home-footer p {
-  margin: 0;
+  margin: 0 0 0 auto;
   color: rgba(2, 40, 89, 0.7);
   font-size: 0.92rem;
+  white-space: nowrap;
 }
 
 .mobile-tabbar {
@@ -729,7 +729,11 @@
 
   .home-footer {
     padding-bottom: 5.2rem;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .home-footer p {
+    margin-left: 0;
+    white-space: normal;
   }
 }

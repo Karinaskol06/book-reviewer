@@ -14,7 +14,7 @@
   border-radius: 24px;
   background:
     linear-gradient(135deg, rgba(255, 249, 238, 0.92), rgba(247, 228, 203, 0.75)),
-    radial-gradient(circle at 85% 20%, rgba(240, 156, 32, 0.18), transparent 45%);
+    radial-gradient(circle at 85% 20%, rgba(242, 189, 193, 0.35), transparent 45%);
   border: 1px solid rgba(2, 40, 89, 0.08);
 }
 
@@ -70,7 +70,7 @@
 
 .clubs-spine--b {
   height: 82%;
-  background: linear-gradient(180deg, #f2a71b, #f09c20);
+  background: linear-gradient(180deg, #f2bdc1, #dba0a5);
 }
 
 .clubs-spine--c {
@@ -172,7 +172,7 @@
 }
 
 .club-card--tone-2 .club-card__band {
-  background: linear-gradient(120deg, #b8731a, #f09c20);
+  background: linear-gradient(120deg, #dba0a5, #f2bdc1);
 }
 
 .club-card__band {

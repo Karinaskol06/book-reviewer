@@ -81,8 +81,8 @@
 }
 
 .genre-chips button.active {
-  background: #85a663;
-  color: #102c10;
+  background: #749283;
+  color: #fff9ee;
 }
 
 .dropzone {
@@ -117,7 +117,7 @@
 }
 
 .dropzone.is-dragging {
-  border-color: #85a663;
+  border-color: #749283;
   background: #eef5e8;
 }
 

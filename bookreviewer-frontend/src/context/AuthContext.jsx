@@ -53,6 +53,15 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }, [])
 
+  const updateUser = useCallback((partial) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const nextUser = { ...prev, ...partial }
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser))
+      return nextUser
+    })
+  }, [])
+
   useEffect(() => registerLogoutHandler(logout), [logout])
 
   const value = {
@@ -62,6 +71,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    updateUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
