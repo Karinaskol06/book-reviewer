@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import AppChrome from '../components/layout/AppChrome.jsx'
+import { resolveMediaUrl } from '../utils/media.js'
 import './DashboardPage.css'
 import { getBooksByGenre, getGenres, getTrendingBooks, searchBooks } from '../services/homeService.js'
 
@@ -239,7 +240,7 @@ const DashboardPage = () => {
                     transition={{ duration: 0.36, delay: index * 0.06 }}
                     whileHover={{ y: -6, scale: 1.02 }}
                   >
-                    <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                    <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                     <h4>{book.title}</h4>
                     <p>{book.author}</p>
                     <p className="book-card__rating">{renderStars(book.averageRating)} ({book.averageRating?.toFixed?.(1) || '0.0'})</p>

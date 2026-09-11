@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useDebounce } from '../hooks/useDebounce.js'
 import { getGenres } from '../services/homeService.js'
-import { checkBookDuplicate, createBook, getBookDetail } from '../services/bookService.js'
+import { checkBookDuplicate, createBook, getBookDetail, uploadBookCover } from '../services/bookService.js'
+import { resolveMediaUrl } from '../utils/media.js'
 import './AddBookPage.css'
 
 const AddBookPage = () => {
@@ -16,6 +17,8 @@ const AddBookPage = () => {
   const [duplicateInfo, setDuplicateInfo] = useState(null)
   const [duplicateBook, setDuplicateBook] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [coverUploading, setCoverUploading] = useState(false)
+  const [coverError, setCoverError] = useState('')
 
   const initialQuery = searchParams.get('query') || ''
   const [form, setForm] = useState({
@@ -75,8 +78,9 @@ const AddBookPage = () => {
     const required = form.title.trim() && form.author.trim()
     if (!required) return false
     if (duplicateInfo) return false
+    if (coverUploading) return false
     return true
-  }, [duplicateInfo, form.author, form.title])
+  }, [coverUploading, duplicateInfo, form.author, form.title])
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
 
@@ -101,17 +105,28 @@ const AddBookPage = () => {
   const applyCoverValue = (value) => {
     const normalized = String(value || '').trim()
     updateForm('coverUrl', normalized)
-    setCoverPreview(normalized)
+    setCoverPreview(normalized ? resolveMediaUrl(normalized, '') : '')
+    setCoverError('')
   }
 
-  const handleFile = (file) => {
+  const handleFile = async (file) => {
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '')
-      applyCoverValue(dataUrl)
+    const maxBytes = 10 * 1024 * 1024
+    if (file.size > maxBytes) {
+      setCoverError('Cover must be 10MB or smaller.')
+      return
     }
-    reader.readAsDataURL(file)
+    setCoverUploading(true)
+    setCoverError('')
+    try {
+      const uploaded = await uploadBookCover(file)
+      applyCoverValue(uploaded.coverUrl)
+    } catch (err) {
+      setCoverError(err?.response?.data?.message || 'Could not upload cover.')
+    } finally {
+      setCoverUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   const onDrop = (event) => {
@@ -184,7 +199,7 @@ const AddBookPage = () => {
               Cover Image URL (optional)
               <input
                 type="url"
-                value={form.coverUrl}
+                value={form.coverUrl.startsWith('http') ? form.coverUrl : ''}
                 onChange={(e) => applyCoverValue(e.target.value)}
                 placeholder="https://example.com/cover.jpg"
               />
@@ -226,12 +241,19 @@ const AddBookPage = () => {
               onDragLeave={() => setIsDragging(false)}
               onDrop={onDrop}
             >
-              <p>Drag and drop high-resolution scans, or <button type="button" onClick={() => fileInputRef.current?.click()}>browse archive</button></p>
-              {coverPreview && <img src={coverPreview} alt="Cover preview" />}
+              <p>
+                Drag and drop a cover image, or{' '}
+                <button type="button" onClick={() => fileInputRef.current?.click()}>browse</button>
+              </p>
+              {coverUploading && <p className="cover-hint">Uploading cover…</p>}
+              {coverError && <p className="cover-hint cover-hint--error">{coverError}</p>}
+              {coverPreview && !coverUploading && (
+                <img src={coverPreview} alt="Cover preview" />
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 hidden
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
@@ -251,7 +273,7 @@ const AddBookPage = () => {
               <p>Our archivists identified a potential match for this volume already residing in our collection.</p>
               <div className="duplicate-entry">
                 <img
-                  src={duplicateBook?.coverUrl || '/home-book.jpg'}
+                  src={resolveMediaUrl(duplicateBook?.coverUrl, '/home-book.jpg')}
                   alt={duplicateInfo.title}
                 />
                 <div>

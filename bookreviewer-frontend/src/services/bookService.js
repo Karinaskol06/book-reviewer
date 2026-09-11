@@ -36,6 +36,15 @@ export const createBook = async (payload) => {
   return response.data
 }
 
+export const uploadBookCover = async (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post('/books/covers', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
 export const createReview = async (bookId, payload) => {
   const response = await api.post(`/books/${bookId}/reviews`, payload)
   return response.data

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { createReview, getBookDetail, setBookStatus } from '../services/bookService.js'
+import { resolveMediaUrl } from '../utils/media.js'
 import './WriteReviewPage.css'
 
 const moodOptions = [
@@ -103,7 +104,7 @@ const WriteReviewPage = () => {
       <div className="home-content write-review-page">
         <form className="review-form-shell" onSubmit={submit}>
           <section className="review-book-head">
-            <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+            <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
             <div>
               <p className="kicker">DIGITAL ARCHIVIST REVIEW</p>
               <h2>{book.title}</h2>

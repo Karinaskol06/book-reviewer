@@ -121,6 +121,16 @@
   background: #eef5e8;
 }
 
+.cover-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  color: #2f4e50;
+}
+
+.cover-hint--error {
+  color: #8a1f1f;
+}
+
 .actions {
   display: flex;
   align-items: center;

@@ -162,7 +162,7 @@ const BookDetailPage = () => {
       <div className="home-content">
         <section className="book-hero">
           <aside className="book-cover-col">
-            <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+            <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
             <div className="status-actions">
               <button
                 className={currentStatus === 'WANT_TO_READ' ? 'is-active' : ''}
@@ -196,13 +196,21 @@ const BookDetailPage = () => {
           </aside>
 
           <section className="book-main">
-            <p className="book-kicker">BESTSELLER · {(book.genres || [])[0] || 'FICTION'}</p>
+            <p className="book-kicker">
+              {[
+                book.publicationYear ? String(book.publicationYear) : null,
+                (book.genres || []).slice(0, 2).join(' · ') || null,
+                `★ ${(stats.average?.toFixed?.(1) || '0.0')} (${stats.total || 0})`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
             <h2>{book.title}</h2>
             <p className="book-author">by {book.author}</p>
 
             <div className="book-stats-row">
               <span>★ {stats.average?.toFixed?.(1) || '0.0'} ({stats.total || 0} reviews)</span>
-              <span>{book.publicationYear || 'N/A'} edition</span>
+              <span>{book.publicationYear ? `Published ${book.publicationYear}` : 'Year unknown'}</span>
               <span>Status: {toStatusLabel(currentStatus)}</span>
             </div>
 

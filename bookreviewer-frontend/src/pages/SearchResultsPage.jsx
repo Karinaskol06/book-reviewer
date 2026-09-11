@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppChrome from '../components/layout/AppChrome.jsx'
+import { resolveMediaUrl } from '../utils/media.js'
 import { filterBooks, getGenres } from '../services/homeService.js'
 import './SearchResultsPage.css'
 
@@ -165,7 +166,7 @@ const SearchResultsPage = () => {
               {booksPage.content.map((book) => (
                 <article key={book.id} className="result-card" onClick={() => navigate(`/books/${book.id}`)}>
                   <div className="result-card__cover">
-                    <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                    <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                   </div>
                   <div className="result-card__body">
                     <h4>{book.title}</h4>

@@ -514,7 +514,7 @@ const UserProfilePage = () => {
                     onClick={() => navigate(`/books/${book.id}`)}
                   >
                     <div className="recommendation-card__cover-wrap">
-                      <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                      <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                     </div>
                     <div className="recommendation-card__body">
                       <p className="recommendation-card__reason">{book.reason}</p>
@@ -536,7 +536,7 @@ const UserProfilePage = () => {
           <div className="shelf-grid">
             {currentlyReadingBooks.map((book) => (
               <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
-                <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                 <h4>{book.title}</h4>
                 <p>{book.author}</p>
               </article>
@@ -551,7 +551,7 @@ const UserProfilePage = () => {
           <div className="shelf-grid">
             {wantToReadBooks.map((book) => (
               <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
-                <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                 <h4>{book.title}</h4>
                 <p>{book.author}</p>
               </article>
@@ -566,7 +566,7 @@ const UserProfilePage = () => {
           <div className="shelf-grid">
             {readBooks.map((book) => (
               <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
-                <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                 <h4>{book.title}</h4>
                 <p>{book.author}</p>
               </article>
@@ -675,7 +675,7 @@ const UserProfilePage = () => {
                       navigate(`/books/${book.id}`)
                     }}
                   >
-                    <img src={book.coverUrl || '/home-book.jpg'} alt="" />
+                    <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt="" />
                     <span>
                       <strong>{book.title}</strong>
                       <em>{book.author || 'Unknown author'}</em>
@@ -698,7 +698,7 @@ const UserProfilePage = () => {
                       navigate(`/books/${book.id}`)
                     }}
                   >
-                    <img src={book.coverUrl || '/home-book.jpg'} alt="" />
+                    <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt="" />
                     <span>
                       <strong>{book.title}</strong>
                       <em>{book.author || 'Unknown author'}</em>

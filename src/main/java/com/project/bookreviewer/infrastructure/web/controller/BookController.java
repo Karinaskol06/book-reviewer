@@ -3,8 +3,8 @@ package com.project.bookreviewer.infrastructure.web.controller;
 import com.project.bookreviewer.application.dto.request.CreateBookRequest;
 import com.project.bookreviewer.application.dto.response.BookDetailResponse;
 import com.project.bookreviewer.application.dto.response.BookResponse;
+import com.project.bookreviewer.application.dto.response.CoverUploadResponse;
 import com.project.bookreviewer.application.dto.response.DuplicateCheckResponse;
-import com.project.bookreviewer.application.dto.response.RatingStatsDto;
 import com.project.bookreviewer.application.mapper.BookMapper;
 import com.project.bookreviewer.application.service.BookService;
 import com.project.bookreviewer.application.service.ReviewService;
@@ -17,12 +17,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -82,6 +84,16 @@ public class BookController {
         Book created = bookService.createBook(book, actorUserId);
         return ResponseEntity.created(URI.create("/api/books/" + created.getId()))
                 .body(bookMapper.toResponse(created));
+    }
+
+    @PostMapping(value = "/covers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CoverUploadResponse> uploadCover(@RequestParam("file") MultipartFile file) {
+        String key = bookService.storeCover(file);
+        return ResponseEntity.ok(CoverUploadResponse.builder()
+                .coverUrl(bookService.toPublicCoverUrl(key))
+                .message("Cover uploaded successfully")
+                .build());
     }
 
     @GetMapping("/check")

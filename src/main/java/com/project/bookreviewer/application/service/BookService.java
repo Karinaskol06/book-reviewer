@@ -9,27 +9,51 @@ import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.port.inbound.BookUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
+import com.project.bookreviewer.infrastructure.storage.StorageProperties;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class BookService implements BookUseCase {
+    private static final String COVER_FOLDER = "covers";
+
     private final BookRepositoryPort bookRepository;
     private final ReviewRepositoryPort reviewRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ObjectStoragePort objectStoragePort;
+    private final StorageProperties storageProperties;
 
     @Override
     @Transactional
     public Book createBook(Book book, Long actorUserId) {
         book.normalizeFields();
+        book = Book.builder()
+                .id(book.getId())
+                .title(book.getTitle())
+                .author(book.getAuthor())
+                .normalizedTitle(book.getNormalizedTitle())
+                .description(book.getDescription())
+                .coverUrl(normalizeCoverForStorage(book.getCoverUrl()))
+                .publicationYear(book.getPublicationYear())
+                .genres(book.getGenres())
+                .createdAt(book.getCreatedAt())
+                .averageRating(book.getAverageRating())
+                .ratingCount(book.getRatingCount())
+                .totalReviews(book.getTotalReviews())
+                .build();
+
         // Application-level duplicate check
         Optional<Book> existing = bookRepository.findByNormalizedTitleAndAuthor(
                 book.getNormalizedTitle(),
@@ -54,6 +78,69 @@ public class BookService implements BookUseCase {
             }
             throw e;
         }
+    }
+
+    @Transactional
+    public String storeCover(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Cover file is empty");
+        }
+        try {
+            return objectStoragePort.store(
+                    COVER_FOLDER,
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getInputStream(),
+                    file.getSize()
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read cover upload", e);
+        }
+    }
+
+    public String toPublicCoverUrl(String storedReference) {
+        if (storedReference == null || storedReference.isBlank()) {
+            return null;
+        }
+        String value = storedReference.trim();
+        if (value.startsWith("data:")) {
+            return null;
+        }
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        if (value.startsWith("/uploads-book-reviewer/")) {
+            return value;
+        }
+        return objectStoragePort.toPublicUrl(value);
+    }
+
+    /**
+     * Persist storage keys (or external http URLs). Reject inline data URLs.
+     * Public upload paths are converted back to keys.
+     */
+    String normalizeCoverForStorage(String coverUrl) {
+        if (coverUrl == null || coverUrl.isBlank()) {
+            return null;
+        }
+        String value = coverUrl.trim();
+        if (value.startsWith("data:")) {
+            throw new IllegalArgumentException("Inline cover images are not allowed; upload a file instead");
+        }
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        String prefix = storageProperties.getLocal().getPublicPrefix();
+        if (prefix != null && !prefix.isBlank()) {
+            String normalizedPrefix = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+            if (!normalizedPrefix.startsWith("/")) {
+                normalizedPrefix = "/" + normalizedPrefix;
+            }
+            if (value.startsWith(normalizedPrefix + "/")) {
+                return value.substring(normalizedPrefix.length() + 1);
+            }
+        }
+        return value;
     }
 
     @Override
@@ -168,7 +255,7 @@ public class BookService implements BookUseCase {
                 .id(book.getId())
                 .title(book.getTitle())
                 .author(book.getAuthor())
-                .coverUrl(book.getCoverUrl())
+                .coverUrl(toPublicCoverUrl(book.getCoverUrl()))
                 .description(book.getDescription())
                 .totalReviews(book.getTotalReviews())
                 .build();
