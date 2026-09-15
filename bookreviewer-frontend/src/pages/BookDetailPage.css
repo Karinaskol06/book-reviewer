@@ -20,7 +20,7 @@
 
 .status-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
   margin-top: 0.8rem;
 }
@@ -42,6 +42,11 @@
 .status-actions .add-review-btn {
   background: #2c5273;
   color: #f2e0d0;
+  grid-column: 1 / -1;
+}
+
+.status-actions .add-review-btn--done {
+  background: #6b8aa8;
 }
 
 .book-kicker {

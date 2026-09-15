@@ -28,9 +28,7 @@ import {
 import './UserProfilePage.css'
 
 const STAT_MODAL_TITLES = {
-  read: 'Books read',
   reviews: 'Reviews',
-  want: 'Want to read',
   followers: 'Followers',
   following: 'Following',
 }
@@ -50,6 +48,7 @@ const UserProfilePage = () => {
   const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState([])
   const [wantToReadBooks, setWantToReadBooks] = useState([])
   const [readBooks, setReadBooks] = useState([])
+  const [abandonedBooks, setAbandonedBooks] = useState([])
   const [myReviews, setMyReviews] = useState([])
   const [genreCounts, setGenreCounts] = useState({})
   const [recommendations, setRecommendations] = useState([])
@@ -116,21 +115,30 @@ const UserProfilePage = () => {
       }
       setFollowError('')
 
-      const [readingStatuses, wantStatuses, readStatuses, allStatuses] = isOwnProfile
-        ? await Promise.all([getUserLibrary('READING'), getUserLibrary('WANT_TO_READ'), getUserLibrary('READ'), getUserLibrary()])
+      const [readingStatuses, wantStatuses, readStatuses, abandonedStatuses, allStatuses] = isOwnProfile
+        ? await Promise.all([
+          getUserLibrary('READING'),
+          getUserLibrary('WANT_TO_READ'),
+          getUserLibrary('READ'),
+          getUserLibrary('ABANDONED'),
+          getUserLibrary(),
+        ])
         : await Promise.all([
           getUserLibraryByUserId(currentProfile.id, 'READING'),
           getUserLibraryByUserId(currentProfile.id, 'WANT_TO_READ'),
           getUserLibraryByUserId(currentProfile.id, 'READ'),
+          getUserLibraryByUserId(currentProfile.id, 'ABANDONED'),
           getUserLibraryByUserId(currentProfile.id),
         ])
 
       const readingBooks = await Promise.all(readingStatuses.map((item) => getBookDetail(item.bookId)))
       const wantBooks = await Promise.all(wantStatuses.map((item) => getBookDetail(item.bookId)))
       const doneBooks = await Promise.all(readStatuses.map((item) => getBookDetail(item.bookId)))
+      const droppedBooks = await Promise.all(abandonedStatuses.map((item) => getBookDetail(item.bookId)))
       setCurrentlyReadingBooks(readingBooks)
       setWantToReadBooks(wantBooks)
       setReadBooks(doneBooks)
+      setAbandonedBooks(droppedBooks)
 
       const allBooks = await Promise.all(allStatuses.map((item) => getBookDetail(item.bookId)))
       const genres = {}
@@ -422,17 +430,9 @@ const UserProfilePage = () => {
                 <p className="save-hint save-hint--error">File is too large. Max avatar size is 10MB.</p>
               )}
               <div className="stats">
-                <button type="button" className="stats__item" onClick={() => openStatsModal('read')}>
-                  <strong>{profile.booksRead || 0}</strong>
-                  <span>Books read</span>
-                </button>
                 <button type="button" className="stats__item" onClick={() => openStatsModal('reviews')}>
                   <strong>{profile.booksReviewed || 0}</strong>
                   <span>Reviews</span>
-                </button>
-                <button type="button" className="stats__item" onClick={() => openStatsModal('want')}>
-                  <strong>{profile.booksWantToRead || 0}</strong>
-                  <span>Want to read</span>
                 </button>
                 <button type="button" className="stats__item" onClick={() => openStatsModal('followers')}>
                   <strong>{followStats.followers}</strong>
@@ -574,6 +574,21 @@ const UserProfilePage = () => {
           </div>
         </section>
 
+        <section className="shelf-section shelf-section--tinted">
+          <div className="shelf-header">
+            <h3>Abandoned</h3>
+          </div>
+          <div className="shelf-grid">
+            {abandonedBooks.map((book) => (
+              <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
+                <h4>{book.title}</h4>
+                <p>{book.author}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className="shelf-section reviews-section">
           <div className="shelf-header">
             <h3 className="reviews-title">{isOwnProfile ? 'My Reviews' : `${profile.username}'s Reviews`}</h3>
@@ -661,52 +676,6 @@ const UserProfilePage = () => {
                 ×
               </button>
             </div>
-
-            {statsModal === 'read' && (
-              <div className="profile-stats-modal__list">
-                {readBooks.length === 0 && <p className="profile-stats-modal__empty">No books marked as read yet.</p>}
-                {readBooks.map((book) => (
-                  <button
-                    key={book.id}
-                    type="button"
-                    className="profile-stats-modal__book"
-                    onClick={() => {
-                      closeStatsModal()
-                      navigate(`/books/${book.id}`)
-                    }}
-                  >
-                    <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt="" />
-                    <span>
-                      <strong>{book.title}</strong>
-                      <em>{book.author || 'Unknown author'}</em>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {statsModal === 'want' && (
-              <div className="profile-stats-modal__list">
-                {wantToReadBooks.length === 0 && <p className="profile-stats-modal__empty">Want-to-read shelf is empty.</p>}
-                {wantToReadBooks.map((book) => (
-                  <button
-                    key={book.id}
-                    type="button"
-                    className="profile-stats-modal__book"
-                    onClick={() => {
-                      closeStatsModal()
-                      navigate(`/books/${book.id}`)
-                    }}
-                  >
-                    <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt="" />
-                    <span>
-                      <strong>{book.title}</strong>
-                      <em>{book.author || 'Unknown author'}</em>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
 
             {statsModal === 'reviews' && (
               <div className="profile-stats-modal__list">

@@ -4,6 +4,7 @@ import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.BookFilterCriteria;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.entity.BookEntity;
+import com.project.bookreviewer.shared.util.NormalizationUtils;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -37,8 +38,8 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
     }
 
     @Override
-    public Optional<Book> findByNormalizedTitleAndAuthor(String normalizedTitle, String author) {
-        return jpaBookRepository.findByNormalizedTitleAndAuthor(normalizedTitle, author)
+    public Optional<Book> findByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor) {
+        return jpaBookRepository.findByNormalizedTitleAndNormalizedAuthor(normalizedTitle, normalizedAuthor)
                 .map(this::mapToDomain);
     }
 
@@ -117,8 +118,8 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
     }
 
     @Override
-    public boolean existsByNormalizedTitleAndAuthor(String normalizedTitle, String author) {
-        return jpaBookRepository.existsByNormalizedTitleAndAuthor(normalizedTitle, author);
+    public boolean existsByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor) {
+        return jpaBookRepository.existsByNormalizedTitleAndNormalizedAuthor(normalizedTitle, normalizedAuthor);
     }
 
     @Override
@@ -128,11 +129,15 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
 
 
     private BookEntity mapToEntity(Book book) {
+        String normalizedAuthor = book.getNormalizedAuthor() != null
+                ? book.getNormalizedAuthor()
+                : NormalizationUtils.normalize(book.getAuthor());
         return BookEntity.builder()
                 .id(book.getId())
                 .title(book.getTitle())
                 .normalizedTitle(book.getNormalizedTitle())
                 .author(book.getAuthor())
+                .normalizedAuthor(normalizedAuthor)
                 .description(book.getDescription())
                 .coverUrl(book.getCoverUrl())
                 .publicationYear(book.getPublicationYear())
@@ -145,11 +150,15 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
     }
 
     private Book mapToDomain(BookEntity entity) {
+        String normalizedAuthor = entity.getNormalizedAuthor() != null
+                ? entity.getNormalizedAuthor()
+                : NormalizationUtils.normalize(entity.getAuthor());
         return Book.builder()
                 .id(entity.getId())
                 .title(entity.getTitle())
                 .normalizedTitle(entity.getNormalizedTitle())
                 .author(entity.getAuthor())
+                .normalizedAuthor(normalizedAuthor)
                 .description(entity.getDescription())
                 .coverUrl(entity.getCoverUrl())
                 .publicationYear(entity.getPublicationYear())

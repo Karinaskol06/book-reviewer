@@ -186,12 +186,29 @@ const BookDetailPage = () => {
                 Read
               </button>
               <button
+                className={currentStatus === 'ABANDONED' ? 'is-active' : ''}
                 type="button"
-                className="add-review-btn"
-                onClick={() => navigate(`/books/${id}/review/new`)}
+                onClick={() => handleSetStatus('ABANDONED')}
               >
-                Add review
+                Abandoned
               </button>
+              {book.userHasReviewed ? (
+                <button
+                  type="button"
+                  className="add-review-btn add-review-btn--done"
+                  onClick={() => document.getElementById('critical-discourse')?.scrollIntoView({ behavior: 'smooth' })}
+                >
+                  View your review
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="add-review-btn"
+                  onClick={() => navigate(`/books/${id}/review/new`)}
+                >
+                  Add review
+                </button>
+              )}
             </div>
           </aside>
 
@@ -227,7 +244,7 @@ const BookDetailPage = () => {
           </section>
         </section>
 
-        <section className="critical">
+        <section className="critical" id="critical-discourse">
           <h3>Critical Discourse</h3>
           <div className="rating-summary">
             <div className="rating-box">

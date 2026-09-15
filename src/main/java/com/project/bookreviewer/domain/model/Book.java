@@ -13,6 +13,7 @@ public class Book {
     private String title;
     private String normalizedTitle;
     private String author;
+    private String normalizedAuthor;
     private String description;
     private String coverUrl;
     private Integer publicationYear;
@@ -26,5 +27,6 @@ public class Book {
 
     public void normalizeFields() {
         this.normalizedTitle = NormalizationUtils.normalize(title);
+        this.normalizedAuthor = NormalizationUtils.normalize(author);
     }
 }

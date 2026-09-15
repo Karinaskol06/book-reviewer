@@ -140,10 +140,17 @@
 
 .actions button {
   border: none;
+  border-radius: 999px;
   padding: 0.75rem 1.4rem;
   font-weight: 700;
-  background: linear-gradient(90deg, #d76635, #f2bdc1);
-  color: white;
+  background: #749283;
+  color: #fff9ee;
+  cursor: pointer;
+  transition: background-color 0.2s ease, filter 0.15s ease;
+}
+
+.actions button:hover:not(:disabled) {
+  background: #627a6e;
 }
 
 .actions button:disabled {
@@ -153,12 +160,13 @@
 .actions button.ghost {
   background: transparent;
   color: #2c5273;
+  border: 1px solid rgba(44, 82, 115, 0.28);
 }
 
 .duplicate-box,
 .note-box {
   background: #f2e0d0;
-  border-left: 4px solid #f7b7bc;
+  border-left: 4px solid #749283;
   padding: 1rem;
 }
 
@@ -168,6 +176,13 @@
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 2rem;
   color: #022859;
+}
+
+.duplicate-box > p {
+  margin: 0;
+  padding: 1rem 0 1rem;
+  color: #2c5273;
+  line-height: 1;
 }
 
 .duplicate-box p,
@@ -217,22 +232,24 @@
 .duplicate-box > button {
   width: 100%;
   border: none;
+  border-radius: 999px;
   margin-top: 0.55rem;
   padding: 0.7rem;
-  background: #2c5273;
-  color: #f2e0d0;
+  background: #749283;
+  color: #fff9ee;
   font-weight: 700;
 }
 
 .duplicate-box > button.ghost {
   background: transparent;
   color: #2c5273;
-  border: 1px solid #cda96f;
+  border: 1px solid rgba(116, 146, 131, 0.45);
+  border-radius: 999px;
 }
 
 .note-box .quote {
   margin-top: 1.15rem;
-  color: #534434;
+  color: #2f4e50;
   font-style: italic;
   line-height: 1.5;
 }

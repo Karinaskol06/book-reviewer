@@ -44,6 +44,7 @@ public class BookService implements BookUseCase {
                 .title(book.getTitle())
                 .author(book.getAuthor())
                 .normalizedTitle(book.getNormalizedTitle())
+                .normalizedAuthor(book.getNormalizedAuthor())
                 .description(book.getDescription())
                 .coverUrl(normalizeCoverForStorage(book.getCoverUrl()))
                 .publicationYear(book.getPublicationYear())
@@ -55,9 +56,9 @@ public class BookService implements BookUseCase {
                 .build();
 
         // Application-level duplicate check
-        Optional<Book> existing = bookRepository.findByNormalizedTitleAndAuthor(
+        Optional<Book> existing = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
                 book.getNormalizedTitle(),
-                NormalizationUtils.normalize(book.getAuthor())
+                book.getNormalizedAuthor()
         );
         if (existing.isPresent()) {
             throw new DuplicateBookException("Book already exists", existing.get().getId());
@@ -69,9 +70,9 @@ public class BookService implements BookUseCase {
             return saved;
         } catch (DataIntegrityViolationException e) {
             // DB-level duplicate prevention (concurrent requests)
-            Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndAuthor(
+            Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
                     book.getNormalizedTitle(),
-                    NormalizationUtils.normalize(book.getAuthor())
+                    book.getNormalizedAuthor()
             );
             if (concurrentExisting.isPresent()) {
                 throw new DuplicateBookException("Book already exists", concurrentExisting.get().getId());
@@ -99,35 +100,34 @@ public class BookService implements BookUseCase {
     }
 
     public String toPublicCoverUrl(String storedReference) {
-        if (storedReference == null || storedReference.isBlank()) {
+        if (storedReference == null || storedReference.isEmpty()) {
             return null;
         }
         String value = storedReference.trim();
         if (value.startsWith("data:")) {
             return null;
         }
-        if (value.startsWith("http://") || value.startsWith("https://")) {
+        // Check if it is not already a URL
+        if (value.startsWith("http:") || value.startsWith("https:")) {
             return value;
         }
         if (value.startsWith("/uploads-book-reviewer/")) {
             return value;
         }
-        return objectStoragePort.toPublicUrl(value);
+
+        return objectStoragePort.toPublicUrl(storedReference);
     }
 
-    /**
-     * Persist storage keys (or external http URLs). Reject inline data URLs.
-     * Public upload paths are converted back to keys.
-     */
     String normalizeCoverForStorage(String coverUrl) {
-        if (coverUrl == null || coverUrl.isBlank()) {
+        if (coverUrl == null || coverUrl.isEmpty()) {
             return null;
         }
         String value = coverUrl.trim();
         if (value.startsWith("data:")) {
-            throw new IllegalArgumentException("Inline cover images are not allowed; upload a file instead");
+            throw new IllegalArgumentException("Upload a new file instead");
         }
-        if (value.startsWith("http://") || value.startsWith("https://")) {
+
+        if (value.startsWith("http:") || value.startsWith("https:")) {
             return value;
         }
         String prefix = storageProperties.getLocal().getPublicPrefix();
@@ -140,6 +140,7 @@ public class BookService implements BookUseCase {
                 return value.substring(normalizedPrefix.length() + 1);
             }
         }
+        
         return value;
     }
 
@@ -178,6 +179,7 @@ public class BookService implements BookUseCase {
                 .title(book.getTitle())
                 .author(book.getAuthor())
                 .normalizedTitle(book.getNormalizedTitle())
+                .normalizedAuthor(book.getNormalizedAuthor())
                 .description(book.getDescription())
                 .coverUrl(book.getCoverUrl())
                 .publicationYear(book.getPublicationYear())
@@ -207,8 +209,12 @@ public class BookService implements BookUseCase {
     // Duplicate check for real-time validation
     public DuplicateCheckResponse checkDuplicate(String title, String author) {
         String normalizedTitle = NormalizationUtils.normalize(title);
+        String normalizedAuthor = NormalizationUtils.normalize(author);
 
-        Optional<Book> existing = bookRepository.findByNormalizedTitleAndAuthor(normalizedTitle, author.trim());
+        Optional<Book> existing = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
+                normalizedTitle,
+                normalizedAuthor
+        );
         if (existing.isPresent()) {
             Book book = existing.get();
             return DuplicateCheckResponse.builder()

@@ -71,8 +71,9 @@ public class BookController {
     }
 
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<BookResponse> createBook(@Valid @RequestBody CreateBookRequest request) {
-        Long actorUserId = securityUtils.isAuthenticated() ? securityUtils.getCurrentUserId() : null;
+        Long actorUserId = securityUtils.getCurrentUserId();
         Book book = Book.builder()
                 .title(request.getTitle())
                 .author(request.getAuthor())

@@ -13,9 +13,9 @@ import java.util.Optional;
 public interface JpaBookRepository extends JpaRepository<BookEntity, Long> {
     Page<BookEntity> findAll(Specification<BookEntity> spec, Pageable pageable);
 
-    Optional<BookEntity> findByNormalizedTitleAndAuthor(String normalizedTitle, String author);
+    Optional<BookEntity> findByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor);
 
-    boolean existsByNormalizedTitleAndAuthor(String normalizedTitle, String author);
+    boolean existsByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor);
 
     @Query("SELECT b FROM BookEntity b JOIN b.genres g WHERE g = :genre")
     List<BookEntity> findByGenre(@Param("genre") String genre, Pageable pageable);

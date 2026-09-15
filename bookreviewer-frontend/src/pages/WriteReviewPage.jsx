@@ -53,10 +53,14 @@ const WriteReviewPage = () => {
   useEffect(() => {
     const load = async () => {
       const data = await getBookDetail(id)
+      if (data?.userHasReviewed) {
+        navigate(`/books/${id}`, { replace: true })
+        return
+      }
       setBook(data)
     }
     load()
-  }, [id])
+  }, [id, navigate])
 
   const stars = useMemo(() => '★'.repeat(form.rating) + '☆'.repeat(5 - form.rating), [form.rating])
 

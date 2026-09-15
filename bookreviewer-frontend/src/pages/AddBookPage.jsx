@@ -298,8 +298,8 @@ const AddBookPage = () => {
             <section className="note-box">
               <h3>Archivist&apos;s Note</h3>
               <p className="quote">
-                A library is not just a collection of books, but a sanctuary of human thought. Precision
-                in your entries ensures that future scholars can trace the lineage of every story.
+                Accurate titles and authors keep reviews, shelves, and recommendations tied to the right
+                book - so readers can find what you meant to share.
               </p>
             </section>
           )}
