@@ -51,3 +51,11 @@ export const exportReadingListPdf = async () => {
   const response = await api.get('/export/reading-list', { responseType: 'blob' })
   return response.data
 }
+
+export const getRecommendations = async (limit = 6) => {
+  const response = await api.get('/recommendations', { params: { limit } })
+  return (response.data || []).map((book) => ({
+    ...book,
+    reason: book.recommendationReason || book.reason || 'Recommended for you',
+  }))
+}

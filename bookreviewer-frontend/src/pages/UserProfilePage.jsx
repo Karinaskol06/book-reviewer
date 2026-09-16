@@ -4,12 +4,12 @@ import { motion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
 import { getBookDetail } from '../services/bookService.js'
-import { getBooksByGenre, getTrendingBooks } from '../services/homeService.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import {
   exportReadingListPdf,
   getMyProfile,
   getMyReviews,
+  getRecommendations,
   getUserProfileById,
   getUserLibrary,
   getUserLibraryByUserId,
@@ -170,12 +170,6 @@ const UserProfilePage = () => {
           .sort((a, b) => new Date(b.review?.createdAt || 0).getTime() - new Date(a.review?.createdAt || 0).getTime()),
       )
 
-      const topGenreNames = Object.entries(genres)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([genre]) => genre)
-
-      const ownedBookIds = new Set(allBooks.map((book) => book.id))
       const isPersonalProfile = isOwnProfile || String(currentProfile.id) === String(user?.userId)
 
       if (!isPersonalProfile) {
@@ -184,28 +178,10 @@ const UserProfilePage = () => {
       } else {
         setRecommendationsLoading(true)
         try {
-          const perGenreResponses = await Promise.all(topGenreNames.map((genre) => getBooksByGenre(genre, 4)))
-          const trendingBooks = await getTrendingBooks(12)
-          const assembled = []
-          const seenIds = new Set()
-
-          perGenreResponses.forEach((response, index) => {
-            const genre = topGenreNames[index]
-            const candidates = Array.isArray(response?.content) ? response.content : response
-            ;(candidates || []).forEach((book) => {
-              if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
-              seenIds.add(book.id)
-              assembled.push({ ...book, reason: `Because you enjoy ${genre}` })
-            })
-          })
-
-          ;(trendingBooks || []).forEach((book) => {
-            if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
-            seenIds.add(book.id)
-            assembled.push({ ...book, reason: 'Trending in the archive' })
-          })
-
-          setRecommendations(assembled.slice(0, 6))
+          const recommended = await getRecommendations(6)
+          setRecommendations(Array.isArray(recommended) ? recommended : [])
+        } catch {
+          setRecommendations([])
         } finally {
           setRecommendationsLoading(false)
         }

@@ -418,12 +418,6 @@
 
 .shelf-book {
   cursor: pointer;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
-}
-
-.shelf-book:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 28px rgba(47, 78, 80, 0.1);
 }
 
 .shelf-book img {
@@ -433,6 +427,12 @@
   object-fit: contain;
   background: #fbecd7;
   border-radius: 0.6rem;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.shelf-book:hover img {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 28px rgba(47, 78, 80, 0.1);
 }
 
 .shelf-book h4 {
