@@ -56,6 +56,7 @@ class BookServiceDuplicateTest {
 
     @Test
     void createBook_persistsDisplayAuthorAndNormalizedAuthor() {
+        // When create() looks for duplicates, say there aren't any
         when(bookRepository.findByNormalizedTitleAndNormalizedAuthor("the hobbit", "jrr tolkien"))
                 .thenReturn(Optional.empty());
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> {

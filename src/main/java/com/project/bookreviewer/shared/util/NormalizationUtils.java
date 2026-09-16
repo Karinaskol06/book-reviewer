@@ -36,4 +36,36 @@ public final class NormalizationUtils {
         return normalized.toLowerCase();
     }
 
+    /**
+     * Comparison key for genres (same rules as {@link #normalize(String)}).
+     */
+    public static String genreKey(String input) {
+        return normalize(input);
+    }
+
+    /**
+     * Display label for a genre: cleaned then Title Case
+     * (e.g. {@code ROMANCE.....} → {@code Romance}).
+     */
+    public static String toGenreLabel(String input) {
+        String key = genreKey(input);
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        StringBuilder label = new StringBuilder();
+        for (String word : key.split(" ")) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (!label.isEmpty()) {
+                label.append(' ');
+            }
+            label.append(Character.toUpperCase(word.charAt(0)));
+            if (word.length() > 1) {
+                label.append(word.substring(1));
+            }
+        }
+        return label.isEmpty() ? null : label.toString();
+    }
+
 }

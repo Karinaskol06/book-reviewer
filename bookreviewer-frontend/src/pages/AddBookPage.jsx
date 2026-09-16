@@ -5,6 +5,7 @@ import { useDebounce } from '../hooks/useDebounce.js'
 import { getGenres } from '../services/homeService.js'
 import { checkBookDuplicate, createBook, getBookDetail, uploadBookCover } from '../services/bookService.js'
 import { resolveMediaUrl } from '../utils/media.js'
+import { findGenreByKey, genreKey, toGenreLabel } from '../utils/genre.js'
 import './AddBookPage.css'
 
 const AddBookPage = () => {
@@ -13,7 +14,8 @@ const AddBookPage = () => {
   const fileInputRef = useRef(null)
 
   const [availableGenres, setAvailableGenres] = useState([])
-  const [customGenre, setCustomGenre] = useState('')
+  const [genreQuery, setGenreQuery] = useState('')
+  const [genreFeedback, setGenreFeedback] = useState({ tone: '', text: '' })
   const [duplicateInfo, setDuplicateInfo] = useState(null)
   const [duplicateBook, setDuplicateBook] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -37,7 +39,7 @@ const AddBookPage = () => {
   useEffect(() => {
     const loadGenres = async () => {
       const list = await getGenres()
-      setAvailableGenres(list)
+      setAvailableGenres(Array.isArray(list) ? list : [])
     }
     loadGenres()
   }, [])
@@ -82,24 +84,79 @@ const AddBookPage = () => {
     return true
   }, [coverUploading, duplicateInfo, form.author, form.title])
 
+  const filteredGenres = useMemo(() => {
+    const query = genreKey(genreQuery)
+    const list = [...availableGenres].sort((a, b) => a.localeCompare(b))
+    if (!query) return list
+    return list.filter((genre) => genreKey(genre).includes(query))
+  }, [availableGenres, genreQuery])
+
+  const exactGenreMatch = useMemo(() => findGenreByKey(availableGenres, genreQuery), [availableGenres, genreQuery])
+
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
 
-  const toggleGenre = (genre) => {
-    setForm((prev) => ({
-      ...prev,
-      genres: prev.genres.includes(genre)
-        ? prev.genres.filter((item) => item !== genre)
-        : [...prev.genres, genre],
-    }))
+  const setGenreMessage = (tone, text) => setGenreFeedback({ tone, text })
+
+  const addGenre = (genre) => {
+    const label = toGenreLabel(genre)
+    if (!label) return
+
+    const alreadySelected = form.genres.some((item) => genreKey(item) === genreKey(label))
+    if (alreadySelected) {
+      const existingLabel = form.genres.find((item) => genreKey(item) === genreKey(label)) || label
+      setGenreMessage('warn', `"${existingLabel}" is already on this book.`)
+      return
+    }
+
+    setForm((prev) => ({ ...prev, genres: [...prev.genres, label] }))
+    setGenreMessage('ok', `Added “${label}”.`)
   }
 
-  const handleAddCustomGenre = () => {
-    const value = customGenre.trim()
-    if (!value) return
-    if (!form.genres.includes(value)) {
-      setForm((prev) => ({ ...prev, genres: [...prev.genres, value] }))
+  const removeGenre = (genre) => {
+    setForm((prev) => ({
+      ...prev,
+      genres: prev.genres.filter((item) => item !== genre),
+    }))
+    setGenreMessage('', '')
+  }
+
+  const toggleGenre = (genre) => {
+    const selected = form.genres.some((item) => genreKey(item) === genreKey(genre))
+    if (selected) {
+      const matched = form.genres.find((item) => genreKey(item) === genreKey(genre))
+      removeGenre(matched || genre)
+      return
     }
-    setCustomGenre('')
+    addGenre(genre)
+  }
+
+  const handleAddFromQuery = () => {
+    const value = genreQuery.trim()
+    if (!value) {
+      setGenreMessage('warn', 'Type a genre name to search or add.')
+      return
+    }
+
+    if (exactGenreMatch) {
+      const alreadySelected = form.genres.some((item) => genreKey(item) === genreKey(exactGenreMatch))
+      if (alreadySelected) {
+        setGenreMessage('warn', `"${exactGenreMatch}" already exists and is already selected.`)
+        return
+      }
+      addGenre(exactGenreMatch)
+      setGenreQuery('')
+      return
+    }
+
+    const label = toGenreLabel(value)
+    if (!label) {
+      setGenreMessage('warn', 'Enter a valid genre name.')
+      return
+    }
+
+    setAvailableGenres((prev) => (findGenreByKey(prev, label) ? prev : [...prev, label]))
+    addGenre(label)
+    setGenreQuery('')
   }
 
   const applyCoverValue = (value) => {
@@ -153,8 +210,14 @@ const AddBookPage = () => {
     navigate(`/books/${created.id}`)
   }
 
+  const addButtonLabel = exactGenreMatch
+    ? (form.genres.some((g) => genreKey(g) === genreKey(exactGenreMatch))
+      ? 'Already added'
+      : 'Add existing')
+    : (genreQuery.trim() ? `Add “${toGenreLabel(genreQuery) || genreQuery.trim()}”` : 'Add genre')
+
   return (
-    <AppChrome>
+    <AppChrome className="add-book-shell">
       <div className="home-content add-book-page">
         <section>
           <h2>Archival Submission</h2>
@@ -207,28 +270,98 @@ const AddBookPage = () => {
 
             <div className="genres">
               <p>Taxonomy (Genres)</p>
-              <div className="genre-chips">
-                {availableGenres.map((genre) => (
-                  <button
-                    key={genre}
-                    type="button"
-                    className={form.genres.includes(genre) ? 'active' : ''}
-                    onClick={() => toggleGenre(genre)}
-                  >
-                    {genre}
-                  </button>
-                ))}
-                <input
-                  value={customGenre}
-                  placeholder="+ Add genre"
-                  onChange={(e) => setCustomGenre(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleAddCustomGenre()
-                    }
-                  }}
-                />
+
+              {form.genres.length > 0 && (
+                <div className="genre-selected" aria-label="Selected genres">
+                  {form.genres.map((genre) => (
+                    <button
+                      key={`selected-${genre}`}
+                      type="button"
+                      className="genre-selected__chip"
+                      onClick={() => removeGenre(genre)}
+                      title={`Remove ${genre}`}
+                    >
+                      {genre}
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="genre-add-row">
+                <label className="genre-search-label">
+                
+                  <input
+                    value={genreQuery}
+                    placeholder="Start typing to filter genres…"
+                    onChange={(e) => {
+                      setGenreQuery(e.target.value)
+                      setGenreFeedback({ tone: '', text: '' })
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddFromQuery()
+                      }
+                    }}
+                    aria-describedby="genre-feedback"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="genre-add-btn"
+                  onClick={handleAddFromQuery}
+                  disabled={
+                    !genreQuery.trim()
+                    || (exactGenreMatch
+                      && form.genres.some((g) => genreKey(g) === genreKey(exactGenreMatch)))
+                  }
+                >
+                  {addButtonLabel}
+                </button>
+              </div>
+
+              {genreFeedback.text && (
+                <p
+                  id="genre-feedback"
+                  className={`genre-feedback genre-feedback--${genreFeedback.tone || 'ok'}`}
+                  role="status"
+                >
+                  {genreFeedback.text}
+                </p>
+              )}
+
+              {!genreFeedback.text && exactGenreMatch && (
+                <p id="genre-feedback" className="genre-feedback genre-feedback--hint" role="status">
+                  “{exactGenreMatch}” already exists in the archive
+                  {form.genres.some((g) => genreKey(g) === genreKey(exactGenreMatch))
+                    ? ' and is selected.'
+                    : ' — click Add existing to attach it.'}
+                </p>
+              )}
+
+              {!genreFeedback.text && genreQuery.trim() && !exactGenreMatch && toGenreLabel(genreQuery) && (
+                <p id="genre-feedback" className="genre-feedback genre-feedback--hint" role="status">
+                  No exact match. You can add “{toGenreLabel(genreQuery)}” as a new genre.
+                </p>
+              )}
+
+              <div className="genre-chips" role="group" aria-label="Available genres">
+                {filteredGenres.length === 0 ? (
+                  <p className="genre-empty">No genres match that search.</p>
+                ) : (
+                  filteredGenres.map((genre) => (
+                    <button
+                      key={genre}
+                      type="button"
+                      className={form.genres.some((g) => genreKey(g) === genreKey(genre)) ? 'active' : ''}
+                      onClick={() => toggleGenre(genre)}
+                      aria-pressed={form.genres.some((g) => genreKey(g) === genreKey(genre))}
+                    >
+                      {genre}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 

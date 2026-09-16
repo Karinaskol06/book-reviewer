@@ -21,8 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -48,7 +50,7 @@ public class BookService implements BookUseCase {
                 .description(book.getDescription())
                 .coverUrl(normalizeCoverForStorage(book.getCoverUrl()))
                 .publicationYear(book.getPublicationYear())
-                .genres(book.getGenres())
+                .genres(normalizeGenres(book.getGenres()))
                 .createdAt(book.getCreatedAt())
                 .averageRating(book.getAverageRating())
                 .ratingCount(book.getRatingCount())
@@ -265,5 +267,25 @@ public class BookService implements BookUseCase {
                 .description(book.getDescription())
                 .totalReviews(book.getTotalReviews())
                 .build();
+    }
+
+    Set<String> normalizeGenres(Set<String> genres) {
+        if (genres == null || genres.isEmpty()) {
+            return genres;
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        Set<String> seenKeys = new LinkedHashSet<>();
+        for (String genre : genres) {
+            String label = NormalizationUtils.toGenreLabel(genre);
+            if (label == null) {
+                continue;
+            }
+            String key = NormalizationUtils.genreKey(label);
+            if (key == null || key.isBlank() || !seenKeys.add(key)) {
+                continue;
+            }
+            normalized.add(label);
+        }
+        return normalized;
     }
 }
