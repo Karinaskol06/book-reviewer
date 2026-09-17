@@ -9,6 +9,7 @@ import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.BookFilterCriteria;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.infrastructure.elasticsearch.document.BookDocument;
+import com.project.bookreviewer.shared.util.NormalizationUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -69,10 +70,11 @@ public class SearchService {
 
     private Page<BookResponse> fallbackSearch(String query, Pageable pageable) {
         List<Book> books = bookRepository.search(query, pageable.getPageNumber(), pageable.getPageSize());
+        long total = bookRepository.countSearch(query);
         return new PageImpl<>(
                 books.stream().map(bookMapper::toResponse).collect(Collectors.toList()),
                 pageable,
-                books.size()
+                total
         );
     }
 
@@ -85,24 +87,33 @@ public class SearchService {
             return page.map(bookMapper::toResponse);
         }
 
-        // Authoritative cached average lives in PostgreSQL; ES can lag after reviews, so minRating must use JPA.
-        if (criteria.getMinRating() != null && criteria.getMinRating() > 0) {
-            Page<Book> books = bookRepository.filterBooks(criteria, pageable);
-            return books.map(bookMapper::toResponse);
-        }
-
         try {
             BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
 
-            // Genre filter (converts the set to a list of FieldValue objects required by Elasticsearch)
+            // Genre filter — expand aliases that share genreKey (Sci-Fi ≡ Sci Fi)
             if (criteria.getGenres() != null && !criteria.getGenres().isEmpty()) {
+                Set<String> expandedGenres = NormalizationUtils.expandMatchingGenres(
+                        criteria.getGenres(),
+                        bookRepository.findAllGenres()
+                );
+                if (expandedGenres.isEmpty()) {
+                    return Page.empty(pageable);
+                }
                 boolBuilder.filter(f -> f.terms(t -> t
                         .field("genres")
                         .terms(terms -> terms.value(
-                                criteria.getGenres().stream()
+                                expandedGenres.stream()
                                         .map(FieldValue::of)
                                         .collect(Collectors.toList())
                         ))
+                ));
+            }
+
+            // minRating on ES (may lag behind Postgres cached average; JPA fallback remains authoritative)
+            if (criteria.getMinRating() != null && criteria.getMinRating() > 0) {
+                boolBuilder.filter(f -> f.range(r -> r
+                        .field("averageRating")
+                        .gte(JsonData.of(criteria.getMinRating().doubleValue()))
                 ));
             }
 
@@ -184,7 +195,7 @@ public class SearchService {
     }
 
     public List<String> getAllGenres() {
-        return bookRepository.findAllGenres();
+        return NormalizationUtils.dedupeGenreLabels(bookRepository.findAllGenres());
     }
 
     /* helper methods */
@@ -206,7 +217,7 @@ public class SearchService {
                 && (criteria.getPacing() == null || criteria.getPacing().isEmpty())
                 && criteria.getYearFrom() == null
                 && criteria.getYearTo() == null
-                && criteria.getContentSafe() == null
+                && !Boolean.TRUE.equals(criteria.getContentSafe())
                 && (criteria.getSearchQuery() == null || criteria.getSearchQuery().isBlank());
     }
 }

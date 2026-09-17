@@ -4,10 +4,13 @@ import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.BookFilterCriteria;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.entity.BookEntity;
+import com.project.bookreviewer.infrastructure.persistence.entity.ReviewEntity;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,12 +21,14 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
 public class BookRepositoryAdapter implements BookRepositoryPort {
     private final JpaBookRepository jpaBookRepository;
+    private final JpaReviewRepository jpaReviewRepository;
 
     @Override
     public Book save(Book book) {
@@ -50,14 +55,48 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
     }
 
     @Override
+    public long countSearch(String query) {
+        return jpaBookRepository.countSearch(query);
+    }
+
+    @Override
     public Page<Book> filterBooks(BookFilterCriteria criteria, Pageable pageable) {
-        Specification<BookEntity> spec = (root, query, cb) -> {
+        List<Long> dominantPacingBookIds = null;
+        if (criteria.getPacing() != null && !criteria.getPacing().isEmpty()) {
+            dominantPacingBookIds = jpaReviewRepository.findBookIdsByDominantPacingIn(
+                    criteria.getPacing().stream().map(Enum::name).collect(Collectors.toList()));
+            if (dominantPacingBookIds.isEmpty()) {
+                return Page.empty(pageable);
+            }
+        }
+
+        Set<String> expandedGenres = null;
+        if (criteria.getGenres() != null && !criteria.getGenres().isEmpty()) {
+            expandedGenres = NormalizationUtils.expandMatchingGenres(
+                    criteria.getGenres(),
+                    jpaBookRepository.findAllGenres()
+            );
+            if (expandedGenres.isEmpty()) {
+                return Page.empty(pageable);
+            }
+        }
+
+        return jpaBookRepository.findAll(buildFilterSpec(criteria, dominantPacingBookIds, expandedGenres), pageable)
+                .map(this::mapToDomain);
+    }
+
+    private Specification<BookEntity> buildFilterSpec(
+            BookFilterCriteria criteria,
+            List<Long> dominantPacingBookIds,
+            Set<String> expandedGenres
+    ) {
+        return (root, query, cb) -> {
             query.distinct(true);
             List<Predicate> predicates = new ArrayList<>();
 
-            if (criteria.getGenres() != null && !criteria.getGenres().isEmpty()) {
+            if (expandedGenres != null) {
                 Join<BookEntity, String> genresJoin = root.join("genres");
-                predicates.add(genresJoin.in(criteria.getGenres()));
+                predicates.add(genresJoin.in(expandedGenres));
             }
             if (criteria.getMinRating() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("averageRating"),
@@ -79,18 +118,26 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
                         cb.like(cb.lower(searchGenresJoin), likePattern)
                 ));
             }
-            // Pacing and contentSafe would require joins to Review; skip for now or implement later
+            if (dominantPacingBookIds != null) {
+                predicates.add(root.get("id").in(dominantPacingBookIds));
+            }
+            if (Boolean.TRUE.equals(criteria.getContentSafe())) {
+                Subquery<Long> warnedReview = query.subquery(Long.class);
+                Root<ReviewEntity> reviewRoot = warnedReview.from(ReviewEntity.class);
+                warnedReview.select(reviewRoot.get("id"))
+                        .where(
+                                cb.equal(reviewRoot.get("bookId"), root.get("id")),
+                                cb.gt(cb.size(reviewRoot.get("contentWarnings")), 0)
+                        );
+                predicates.add(cb.not(cb.exists(warnedReview)));
+            }
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-
-        Page<BookEntity> entityPage = jpaBookRepository.findAll(spec, pageable);
-        return entityPage.map(this::mapToDomain);
     }
 
     @Override
     public List<String> findAllGenres() {
-        // Could be a separate table or aggregated fom books
         return jpaBookRepository.findAllGenres();
     }
 

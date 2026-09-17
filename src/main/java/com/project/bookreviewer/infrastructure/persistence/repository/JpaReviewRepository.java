@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,4 +44,20 @@ public interface JpaReviewRepository extends JpaRepository<ReviewEntity, Long> {
 
     @Query("SELECT COUNT(r) > 0 FROM ReviewEntity r WHERE r.bookId = :bookId AND SIZE(r.contentWarnings) > 0")
     boolean existsContentWarningsByBookId(@Param("bookId") Long bookId);
+
+    /**
+     * Returns book ids whose most common review pacing is in {@code pacings}.
+     * Example: a book with 3 FAST and 1 SLOW reviews counts as FAST.
+     */
+    @Query(value = """
+            SELECT book_id FROM (
+              SELECT book_id, pacing,
+                     ROW_NUMBER() OVER (PARTITION BY book_id ORDER BY COUNT(*) DESC) AS rn
+              FROM reviews
+              WHERE pacing IS NOT NULL
+              GROUP BY book_id, pacing
+            ) ranked
+            WHERE rn = 1 AND pacing IN (:pacings)
+            """, nativeQuery = true)
+    List<Long> findBookIdsByDominantPacingIn(@Param("pacings") Collection<String> pacings);
 }

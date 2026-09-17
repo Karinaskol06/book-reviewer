@@ -42,7 +42,7 @@ export const filterBooks = async ({
     pacing: pacing || undefined,
     yearFrom: yearFrom || undefined,
     yearTo: yearTo || undefined,
-    contentSafe: contentSafe === null || contentSafe === undefined ? undefined : contentSafe,
+    contentSafe: contentSafe === true ? true : undefined,
     page,
     size,
   }

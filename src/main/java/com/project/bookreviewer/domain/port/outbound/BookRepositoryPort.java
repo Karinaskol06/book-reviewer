@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface BookRepositoryPort {
     Book save(Book book);
     List<Book> search(String query, int page, int size);
+    long countSearch(String query);
     long count();
     Optional<Book> findById(Long id);
     Optional<Book> findByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor);

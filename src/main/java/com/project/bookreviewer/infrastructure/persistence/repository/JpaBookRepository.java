@@ -30,6 +30,13 @@ public interface JpaBookRepository extends JpaRepository<BookEntity, Long> {
             "OR LOWER(g) LIKE LOWER(CONCAT('%', :query, '%'))")
     List<BookEntity> search(@Param("query") String query, Pageable pageable);
 
+    @Query("SELECT COUNT(DISTINCT b) FROM BookEntity b LEFT JOIN b.genres g " +
+            "WHERE LOWER(b.title) LIKE LOWER(CONCAT('%', :query, '%')) " +
+            "OR LOWER(b.author) LIKE LOWER(CONCAT('%', :query, '%')) " +
+            "OR LOWER(b.description) LIKE LOWER(CONCAT('%', :query, '%')) " +
+            "OR LOWER(g) LIKE LOWER(CONCAT('%', :query, '%'))")
+    long countSearch(@Param("query") String query);
+
     // Trending: primarily by review volume, with recent status activity as secondary signal.
     @Query(value = """
         SELECT b.*

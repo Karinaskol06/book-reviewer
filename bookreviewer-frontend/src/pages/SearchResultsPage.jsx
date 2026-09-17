@@ -47,7 +47,7 @@ const SearchResultsPage = () => {
           pacing: pacing || undefined,
           yearFrom: yearFrom ? Number(yearFrom) : undefined,
           yearTo: yearTo ? Number(yearTo) : undefined,
-          contentSafe,
+          contentSafe: contentSafe ? true : undefined,
           page,
           size: 6,
         })

@@ -7,6 +7,7 @@ export function genreKey(value) {
   return String(value)
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
+    .replace(/-/g, ' ')
     .replace(/\p{P}/gu, '')
     .trim()
     .replace(/\s+/g, ' ')
