@@ -231,10 +231,7 @@ const DashboardPage = () => {
                   <MotionArticle
                     key={book.id}
                     className="book-card"
-                    onClick={() => {
-                      const queryToUse = searchText.trim() || book.title
-                      navigate(`/search?query=${encodeURIComponent(queryToUse)}&page=0`)
-                    }}
+                    onClick={() => navigate(`/books/${book.id}`)}
                     initial={{ opacity: 0, y: 22 }}
                     animate={trendingInView ? { opacity: 1, y: 0 } : {}}
                     transition={{ duration: 0.36, delay: index * 0.06 }}

@@ -17,8 +17,7 @@ public interface BookRepositoryPort {
     Optional<Book> findByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor);
     List<Book> findAll(int page, int size);
     List<Book> findByGenre(String genre, int page, int size);
-    List<Book> findTrending(int limit);  // for home page
-    Optional<Book> findFeatured();       // for home page
+    List<Book> findTrending(int limit, Long excludeUserId);
     boolean existsByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor);
 
     Page<Book> filterBooks(BookFilterCriteria criteria, Pageable pageable);

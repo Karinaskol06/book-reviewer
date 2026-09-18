@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import AuthLayout from './components/layout/AuthLayout.jsx'
@@ -20,6 +21,11 @@ function App() {
   const { isAuthenticated } = useAuth()
   const location = useLocation()
   const MotionDiv = motion.div
+
+  useEffect(() => {
+    if (location.hash) return
+    window.scrollTo(0, 0)
+  }, [location.pathname, location.search, location.hash])
 
   return (
     <AnimatePresence mode="wait">

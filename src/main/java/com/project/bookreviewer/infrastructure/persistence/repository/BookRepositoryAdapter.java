@@ -154,14 +154,9 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
     }
 
     @Override
-    public List<Book> findTrending(int limit) {
-        return jpaBookRepository.findTrending(limit)
+    public List<Book> findTrending(int limit, Long excludeUserId) {
+        return jpaBookRepository.findTrending(limit, excludeUserId)
                 .stream().map(this::mapToDomain).collect(Collectors.toList());
-    }
-
-    @Override
-    public Optional<Book> findFeatured() {
-        return jpaBookRepository.findFeatured().map(this::mapToDomain);
     }
 
     @Override

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppChrome from '../components/layout/AppChrome.jsx'
+import { useDebounce } from '../hooks/useDebounce.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import { filterBooks, getGenres } from '../services/homeService.js'
 import './SearchResultsPage.css'
@@ -27,6 +28,10 @@ const SearchResultsPage = () => {
   const [allGenres, setAllGenres] = useState([])
   const [booksPage, setBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, number: 0 })
   const [loading, setLoading] = useState(false)
+  const [yearFromDraft, setYearFromDraft] = useState(yearFrom)
+  const [yearToDraft, setYearToDraft] = useState(yearTo)
+  const debouncedYearFrom = useDebounce(yearFromDraft, 400)
+  const debouncedYearTo = useDebounce(yearToDraft, 400)
 
   useEffect(() => {
     const loadGenres = async () => {
@@ -49,7 +54,7 @@ const SearchResultsPage = () => {
           yearTo: yearTo ? Number(yearTo) : undefined,
           contentSafe: contentSafe ? true : undefined,
           page,
-          size: 6,
+          size: 15,
         })
         setBooksPage(result)
       } finally {
@@ -72,6 +77,11 @@ const SearchResultsPage = () => {
     params.set('page', '0')
     setSearchParams(params)
   }
+
+  useEffect(() => {
+    if (debouncedYearFrom === yearFrom && debouncedYearTo === yearTo) return
+    updateFilters({ yearFrom: debouncedYearFrom, yearTo: debouncedYearTo })
+  }, [debouncedYearFrom, debouncedYearTo])
 
   const resultsCountText = useMemo(
     () => `Showing ${booksPage.totalElements ?? 0} curated titles${query ? ` for "${query}"` : ''}`,
@@ -126,14 +136,14 @@ const SearchResultsPage = () => {
               <input
                 type="number"
                 placeholder="From"
-                value={yearFrom}
-                onChange={(e) => updateFilters({ yearFrom: e.target.value })}
+                value={yearFromDraft}
+                onChange={(e) => setYearFromDraft(e.target.value)}
               />
               <input
                 type="number"
                 placeholder="To"
-                value={yearTo}
-                onChange={(e) => updateFilters({ yearTo: e.target.value })}
+                value={yearToDraft}
+                onChange={(e) => setYearToDraft(e.target.value)}
               />
             </div>
 

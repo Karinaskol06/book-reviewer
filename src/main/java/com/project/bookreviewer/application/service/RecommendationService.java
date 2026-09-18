@@ -221,7 +221,7 @@ public class RecommendationService {
             }
         }
 
-        List<Book> trending = bookRepository.findTrending(limit + excluded.size());
+        List<Book> trending = bookRepository.findTrending(limit + excluded.size(), null);
         for (Book book : trending) {
             if (book == null || book.getId() == null || excluded.contains(book.getId())) {
                 continue;

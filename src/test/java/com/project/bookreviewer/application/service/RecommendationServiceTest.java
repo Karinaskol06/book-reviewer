@@ -127,7 +127,7 @@ class RecommendationServiceTest {
 
         when(bookStatusRepository.findByUserId(1L)).thenReturn(List.of());
         when(reviewRepository.findByUserId(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
-        when(bookRepository.findTrending(6)).thenReturn(List.of(trending));
+        when(bookRepository.findTrending(6, null)).thenReturn(List.of(trending));
         when(bookMapper.toResponse(trending)).thenReturn(trendingResponse);
 
         List<BookResponse> result = recommendationService.fromPostgresFallback(1L, 6, excluded);
@@ -145,7 +145,7 @@ class RecommendationServiceTest {
         when(reviewRepository.findByUserId(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
         when(elasticsearchOperations.search(any(Query.class), eq(ReviewDocument.class)))
                 .thenThrow(new RuntimeException("ES down"));
-        when(bookRepository.findTrending(6)).thenReturn(List.of(trending));
+        when(bookRepository.findTrending(6, null)).thenReturn(List.of(trending));
         when(bookMapper.toResponse(trending)).thenReturn(trendingResponse);
 
         List<BookResponse> result = recommendationService.getRecommendations(1L, 6);

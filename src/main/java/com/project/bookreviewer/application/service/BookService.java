@@ -11,6 +11,7 @@ import com.project.bookreviewer.domain.port.inbound.BookUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
+import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import com.project.bookreviewer.infrastructure.storage.StorageProperties;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
 import org.springframework.context.ApplicationEventPublisher;
@@ -36,6 +37,7 @@ public class BookService implements BookUseCase {
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ObjectStoragePort objectStoragePort;
     private final StorageProperties storageProperties;
+    private final SecurityUtils securityUtils;
 
     @Override
     @Transactional
@@ -245,13 +247,8 @@ public class BookService implements BookUseCase {
     // Home page specific
     @Transactional(readOnly = true)
     public List<Book> getTrendingBooks(int limit) {
-        return bookRepository.findTrending(limit);
-    }
-
-    @Transactional(readOnly = true)
-    public Book getFeaturedBook() {
-        return bookRepository.findFeatured()
-                .orElseThrow(() -> new ResourceNotFoundException("No featured book set"));
+        Long excludeUserId = securityUtils.getCurrentUserIdOrNull();
+        return bookRepository.findTrending(limit, excludeUserId);
     }
 
     // Duplicate check for real-time validation
