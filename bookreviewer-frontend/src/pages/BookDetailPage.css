@@ -70,6 +70,20 @@
   font-style: italic;
 }
 
+.edit-book-btn {
+  margin: 0 0 1rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgba(2, 40, 89, 0.25);
+  background: transparent;
+  color: #022859;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.edit-book-btn:hover {
+  background: rgba(2, 40, 89, 0.06);
+}
+
 .book-stats-row {
   border-top: 1px solid rgba(2, 40, 89, 0.15);
   border-bottom: 1px solid rgba(2, 40, 89, 0.15);

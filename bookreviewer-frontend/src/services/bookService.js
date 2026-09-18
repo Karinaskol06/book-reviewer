@@ -26,13 +26,24 @@ export const clearBookStatus = async (bookId) => {
   await api.delete(`/user/books/${bookId}/status`)
 }
 
-export const checkBookDuplicate = async (title, author) => {
-  const response = await api.get('/books/check', { params: { title, author } })
+export const checkBookDuplicate = async (title, author, excludeBookId) => {
+  const response = await api.get('/books/check', {
+    params: {
+      title,
+      author,
+      excludeBookId: excludeBookId || undefined,
+    },
+  })
   return response.data
 }
 
 export const createBook = async (payload) => {
   const response = await api.post('/books', payload)
+  return response.data
+}
+
+export const updateBook = async (bookId, payload) => {
+  const response = await api.put(`/books/${bookId}`, payload)
   return response.data
 }
 

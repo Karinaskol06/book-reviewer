@@ -81,15 +81,15 @@ function App() {
             }
           />
           <Route
-            path="/books/:id"
+            path="/books/new"
             element={
               <ProtectedRoute>
-                <BookDetailPage />
+                <AddBookPage />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/books/new"
+            path="/books/:id/edit"
             element={
               <ProtectedRoute>
                 <AddBookPage />
@@ -101,6 +101,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <WriteReviewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/books/:id"
+            element={
+              <ProtectedRoute>
+                <BookDetailPage />
               </ProtectedRoute>
             }
           />

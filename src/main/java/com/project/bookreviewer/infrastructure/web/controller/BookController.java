@@ -87,6 +87,23 @@ public class BookController {
                 .body(bookMapper.toResponse(created));
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<BookResponse> updateBook(
+            @PathVariable Long id,
+            @Valid @RequestBody CreateBookRequest request) {
+        Book updates = Book.builder()
+                .title(request.getTitle())
+                .author(request.getAuthor())
+                .description(request.getDescription())
+                .coverUrl(request.getCoverUrl())
+                .publicationYear(request.getPublicationYear())
+                .genres(request.getGenres())
+                .build();
+        Book updated = bookService.updateBook(id, updates);
+        return ResponseEntity.ok(bookMapper.toResponse(updated));
+    }
+
     @PostMapping(value = "/covers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<CoverUploadResponse> uploadCover(@RequestParam("file") MultipartFile file) {
@@ -100,8 +117,9 @@ public class BookController {
     @GetMapping("/check")
     public ResponseEntity<DuplicateCheckResponse> checkDuplicate(
             @RequestParam String title,
-            @RequestParam String author) {
-        return ResponseEntity.ok(bookService.checkDuplicate(title, author));
+            @RequestParam String author,
+            @RequestParam(required = false) Long excludeBookId) {
+        return ResponseEntity.ok(bookService.checkDuplicate(title, author, excludeBookId));
     }
 
     @GetMapping("/search")

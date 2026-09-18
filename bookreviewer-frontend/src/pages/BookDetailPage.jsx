@@ -224,6 +224,13 @@ const BookDetailPage = () => {
             </p>
             <h2>{book.title}</h2>
             <p className="book-author">by {book.author}</p>
+            <button
+              type="button"
+              className="ghost edit-book-btn"
+              onClick={() => navigate(`/books/${id}/edit`)}
+            >
+              Edit book
+            </button>
 
             <div className="book-stats-row">
               <span>★ {stats.average?.toFixed?.(1) || '0.0'} ({stats.total || 0} reviews)</span>

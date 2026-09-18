@@ -1,17 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useDebounce } from '../hooks/useDebounce.js'
 import { getGenres } from '../services/homeService.js'
-import { checkBookDuplicate, createBook, getBookDetail, uploadBookCover } from '../services/bookService.js'
+import {
+  checkBookDuplicate,
+  createBook,
+  getBookDetail,
+  updateBook,
+  uploadBookCover,
+} from '../services/bookService.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import { findGenreByKey, genreKey, toGenreLabel } from '../utils/genre.js'
 import './AddBookPage.css'
 
 const AddBookPage = () => {
   const navigate = useNavigate()
+  const { id: editBookId } = useParams()
   const [searchParams] = useSearchParams()
   const fileInputRef = useRef(null)
+  const isEditMode = Boolean(editBookId)
 
   const [availableGenres, setAvailableGenres] = useState([])
   const [genreQuery, setGenreQuery] = useState('')
@@ -21,10 +29,13 @@ const AddBookPage = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [coverUploading, setCoverUploading] = useState(false)
   const [coverError, setCoverError] = useState('')
+  const [loadingBook, setLoadingBook] = useState(isEditMode)
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const initialQuery = searchParams.get('query') || ''
   const [form, setForm] = useState({
-    title: initialQuery,
+    title: isEditMode ? '' : initialQuery,
     author: '',
     publicationYear: '',
     description: '',
@@ -45,20 +56,55 @@ const AddBookPage = () => {
   }, [])
 
   useEffect(() => {
+    if (!isEditMode) return undefined
+    let cancelled = false
+    const loadBook = async () => {
+      setLoadingBook(true)
+      try {
+        const book = await getBookDetail(editBookId)
+        if (cancelled) return
+        setForm({
+          title: book.title || '',
+          author: book.author || '',
+          publicationYear: book.publicationYear != null ? String(book.publicationYear) : '',
+          description: book.description || '',
+          genres: Array.isArray(book.genres) ? book.genres : [],
+          coverUrl: book.coverUrl || '',
+        })
+        setCoverPreview(book.coverUrl ? resolveMediaUrl(book.coverUrl, '') : '')
+      } catch {
+        if (!cancelled) {
+          setSubmitError('Could not load this book for editing.')
+        }
+      } finally {
+        if (!cancelled) setLoadingBook(false)
+      }
+    }
+    loadBook()
+    return () => {
+      cancelled = true
+    }
+  }, [editBookId, isEditMode])
+
+  useEffect(() => {
     const runDuplicateCheck = async () => {
       if (!debouncedTitle || !debouncedAuthor) {
         setDuplicateInfo(null)
         return
       }
       try {
-        const result = await checkBookDuplicate(debouncedTitle, debouncedAuthor)
+        const result = await checkBookDuplicate(
+          debouncedTitle,
+          debouncedAuthor,
+          isEditMode ? editBookId : undefined
+        )
         setDuplicateInfo(result.exists ? result : null)
       } catch {
         setDuplicateInfo(null)
       }
     }
     runDuplicateCheck()
-  }, [debouncedAuthor, debouncedTitle])
+  }, [debouncedAuthor, debouncedTitle, editBookId, isEditMode])
 
   useEffect(() => {
     const loadDuplicateBook = async () => {
@@ -80,9 +126,9 @@ const AddBookPage = () => {
     const required = form.title.trim() && form.author.trim()
     if (!required) return false
     if (duplicateInfo) return false
-    if (coverUploading) return false
+    if (coverUploading || submitting || loadingBook) return false
     return true
-  }, [coverUploading, duplicateInfo, form.author, form.title])
+  }, [coverUploading, duplicateInfo, form.author, form.title, loadingBook, submitting])
 
   const filteredGenres = useMemo(() => {
     const query = genreKey(genreQuery)
@@ -206,8 +252,18 @@ const AddBookPage = () => {
       genres: form.genres.length ? form.genres : undefined,
     }
 
-    const created = await createBook(payload)
-    navigate(`/books/${created.id}`)
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const saved = isEditMode
+        ? await updateBook(editBookId, payload)
+        : await createBook(payload)
+      navigate(`/books/${saved.id}`)
+    } catch (err) {
+      setSubmitError(err?.response?.data?.message || (isEditMode ? 'Could not update book.' : 'Could not create book.'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const addButtonLabel = exactGenreMatch
@@ -216,14 +272,23 @@ const AddBookPage = () => {
       : 'Add existing')
     : (genreQuery.trim() ? `Add “${toGenreLabel(genreQuery) || genreQuery.trim()}”` : 'Add genre')
 
+  if (loadingBook) {
+    return (
+      <AppChrome className="add-book-shell">
+        <p className="intro">Loading book…</p>
+      </AppChrome>
+    )
+  }
+
   return (
     <AppChrome className="add-book-shell">
       <div className="home-content add-book-page">
         <section>
-          <h2>Archival Submission</h2>
+          <h2>{isEditMode ? 'Edit Archival Record' : 'Archival Submission'}</h2>
           <p className="intro">
-            Add a new volume to the collective library. Please ensure the metadata matches the physical
-            edition.
+            {isEditMode
+              ? 'Update this volume’s metadata so titles, covers, and genres stay accurate for readers.'
+              : 'Add a new volume to the collective library. Please ensure the metadata matches the physical edition.'}
           </p>
 
           <form className="book-form" onSubmit={onSubmit}>
@@ -290,7 +355,6 @@ const AddBookPage = () => {
 
               <div className="genre-add-row">
                 <label className="genre-search-label">
-                
                   <input
                     value={genreQuery}
                     placeholder="Start typing to filter genres…"
@@ -392,9 +456,15 @@ const AddBookPage = () => {
               />
             </div>
 
+            {submitError && <p className="cover-hint cover-hint--error">{submitError}</p>}
+
             <div className="actions">
-              <button type="submit" disabled={!canSubmit}>Commit to Archive</button>
-              <button type="button" className="ghost" onClick={() => navigate(-1)}>Discard Draft</button>
+              <button type="submit" disabled={!canSubmit}>
+                {isEditMode ? 'Save changes' : 'Commit to Archive'}
+              </button>
+              <button type="button" className="ghost" onClick={() => navigate(-1)}>
+                {isEditMode ? 'Cancel' : 'Discard Draft'}
+              </button>
             </div>
           </form>
         </section>

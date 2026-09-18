@@ -83,6 +83,52 @@ public class BookService implements BookUseCase {
         }
     }
 
+    @Override
+    @Transactional
+    public Book updateBook(Long id, Book updates) {
+        Book existing = getBook(id);
+
+        updates.normalizeFields();
+        Optional<Book> duplicate = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
+                updates.getNormalizedTitle(),
+                updates.getNormalizedAuthor()
+        );
+        if (duplicate.isPresent() && !duplicate.get().getId().equals(id)) {
+            throw new DuplicateBookException("Book already exists", duplicate.get().getId());
+        }
+
+        Book toSave = Book.builder()
+                .id(existing.getId())
+                .title(updates.getTitle())
+                .author(updates.getAuthor())
+                .normalizedTitle(updates.getNormalizedTitle())
+                .normalizedAuthor(updates.getNormalizedAuthor())
+                .description(updates.getDescription())
+                .coverUrl(normalizeCoverForStorage(updates.getCoverUrl()))
+                .publicationYear(updates.getPublicationYear())
+                .genres(normalizeGenres(updates.getGenres()))
+                .createdAt(existing.getCreatedAt())
+                .averageRating(existing.getAverageRating())
+                .ratingCount(existing.getRatingCount())
+                .totalReviews(existing.getTotalReviews())
+                .build();
+
+        try {
+            Book saved = bookRepository.save(toSave);
+            applicationEventPublisher.publishEvent(new BookUpdatedEvent(this, saved));
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
+                    updates.getNormalizedTitle(),
+                    updates.getNormalizedAuthor()
+            );
+            if (concurrentExisting.isPresent() && !concurrentExisting.get().getId().equals(id)) {
+                throw new DuplicateBookException("Book already exists", concurrentExisting.get().getId());
+            }
+            throw e;
+        }
+    }
+
     @Transactional
     public String storeCover(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -210,6 +256,10 @@ public class BookService implements BookUseCase {
 
     // Duplicate check for real-time validation
     public DuplicateCheckResponse checkDuplicate(String title, String author) {
+        return checkDuplicate(title, author, null);
+    }
+
+    public DuplicateCheckResponse checkDuplicate(String title, String author, Long excludeBookId) {
         String normalizedTitle = NormalizationUtils.normalize(title);
         String normalizedAuthor = NormalizationUtils.normalize(author);
 
@@ -217,7 +267,7 @@ public class BookService implements BookUseCase {
                 normalizedTitle,
                 normalizedAuthor
         );
-        if (existing.isPresent()) {
+        if (existing.isPresent() && (excludeBookId == null || !existing.get().getId().equals(excludeBookId))) {
             Book book = existing.get();
             return DuplicateCheckResponse.builder()
                     .exists(true)
