@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useInView } from 'react-intersection-observer'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
@@ -325,12 +325,13 @@ const FeedSkeleton = () => (
 
 const ActivityFeedPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const reduceMotion = useReducedMotion()
   const { ref, inView } = useInView({ rootMargin: '320px' })
 
   const [activities, setActivities] = useState([])
-  const [findOpen, setFindOpen] = useState(false)
+  const [findOpen, setFindOpen] = useState(() => Boolean(location.state?.openFind))
   const [userSearch, setUserSearch] = useState('')
   const [userResults, setUserResults] = useState([])
   const [searchingUsers, setSearchingUsers] = useState(false)
@@ -339,6 +340,10 @@ const ActivityFeedPage = () => {
   const [loading, setLoading] = useState(false)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (location.state?.openFind) setFindOpen(true)
+  }, [location.state])
 
   const loadFeed = useCallback(async (targetPage) => {
     setLoading(true)

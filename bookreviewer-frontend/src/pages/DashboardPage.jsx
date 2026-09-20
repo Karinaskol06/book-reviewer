@@ -5,12 +5,51 @@ import { useInView } from 'react-intersection-observer'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { resolveMediaUrl } from '../utils/media.js'
 import './DashboardPage.css'
-import { getBooksByGenre, getGenres, getTrendingBooks, searchBooks } from '../services/homeService.js'
+import { getCollectionShelves, getGenres, getTrendingBooks, searchBooks } from '../services/homeService.js'
 
 const renderStars = (rating = 0) => {
   const rounded = Math.round(rating)
   return '★★★★★'.slice(0, rounded) + '☆☆☆☆☆'.slice(0, 5 - rounded)
 }
+
+const collectionBlurb = (genre, books) => {
+  const titles = books.map((book) => book.title).filter(Boolean).slice(0, 2)
+  if (titles.length >= 2) {
+    return `A ${genre.toLowerCase()} trail marked by “${titles[0]}” and “${titles[1]}.”`
+  }
+  if (titles.length === 1) {
+    return `Start this ${genre.toLowerCase()} shelf with “${titles[0]}.”`
+  }
+  return `Browse the archive’s ${genre.toLowerCase()} shelf and find your next chapter.`
+}
+
+const ACTION_LINKS = [
+  {
+    id: 'for-you',
+    title: 'For you',
+    blurb: 'Picks based on what you’ve rated.',
+    to: '/profile#recommendations',
+  },
+  {
+    id: 'add-book',
+    title: 'Add a book',
+    blurb: 'Missing from the archive? Add it.',
+    to: '/books/new',
+  },
+  {
+    id: 'find-readers',
+    title: 'Find readers',
+    blurb: 'Follow people whose taste matches yours.',
+    to: '/feed',
+    state: { openFind: true },
+  },
+  {
+    id: 'clubs',
+    title: 'Book clubs',
+    blurb: 'Join a discussion, not a brochure.',
+    to: '/clubs',
+  },
+]
 
 const DashboardPage = () => {
   const MotionSection = motion.section
@@ -33,7 +72,7 @@ const DashboardPage = () => {
 
   const [trendingRef, trendingInView] = useInView({ triggerOnce: true, threshold: 0.15 })
   const [collectionsRef, collectionsInView] = useInView({ triggerOnce: true, threshold: 0.15 })
-  const [communityRef, communityInView] = useInView({ triggerOnce: true, threshold: 0.2 })
+  const [actionsRef, actionsInView] = useInView({ triggerOnce: true, threshold: 0.2 })
 
   useEffect(() => {
     const loadHomeData = async () => {
@@ -42,20 +81,15 @@ const DashboardPage = () => {
         setTrendingBooks(trending)
 
         const allGenres = await getGenres()
-        setGenres(allGenres.slice(0, 6))
-        const selectedGenres = allGenres.slice(0, 4)
+        const genreList = Array.isArray(allGenres) ? allGenres : []
+        setGenres(genreList.slice(0, 6))
 
-        const cards = await Promise.all(
-          selectedGenres.map(async (genre) => {
-            const books = await getBooksByGenre(genre, 1)
-            return {
-              genre,
-              sampleBook: books[0] || null,
-            }
-          }),
-        )
-
-        setGenreCards(cards)
+        const shelves = await getCollectionShelves({
+          genres: genreList,
+          genreCount: 4,
+          booksPerGenre: 3,
+        })
+        setGenreCards(shelves)
       } catch (error) {
         console.error('Failed to load home data', error)
       } finally {
@@ -105,6 +139,9 @@ const DashboardPage = () => {
     () => (searchText.trim() ? searchResults : trendingBooks.slice(0, 8)),
     [searchResults, searchText, trendingBooks],
   )
+
+  const leadCollection = genreCards[0] || null
+  const railCollections = genreCards.slice(1)
 
   useEffect(() => {
     const shelf = shelfRef.current
@@ -259,86 +296,160 @@ const DashboardPage = () => {
 
         <MotionSection
           ref={collectionsRef}
-          className="section collections"
+          className="section folio-section"
           id="collections"
           initial={{ opacity: 0, y: 28 }}
           animate={collectionsInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5 }}
         >
-          <div className="section__header">
+          <div className="folio-section__header">
+            <p className="folio-section__kicker">Stacks from the archive</p>
             <h3>Explore Collections</h3>
+            <p className="folio-section__lede">
+              Each shelf opens with a few covers — follow the one that catches your eye.
+            </p>
           </div>
+
           {loadingHome ? (
-            <div className="collections-skeleton">
-              <div className="skeleton-panel skeleton-panel--feature" />
-              <div className="skeleton-panel" />
-              <div className="skeleton-panel" />
-            </div>
-          ) : (
-            <div className="collection-layout">
-              {genreCards[0] && (
-                <article className="collection-card collection-card--feature motion-surface">
-                  <span className="collection-card__meta">FEATURED STACK</span>
-                  <h4>{genreCards[0].genre}</h4>
-                  <p>
-                    {genreCards[0].sampleBook
-                      ? `Begin with "${genreCards[0].sampleBook.title}" by ${genreCards[0].sampleBook.author}.`
-                      : 'Discover curated titles from this genre.'}
-                  </p>
-                  <MotionButton
-                    type="button"
-                    className="collection-card__action"
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => navigate(`/search?genres=${encodeURIComponent(genreCards[0].genre)}&page=0`)}
-                  >
-                    View genre
-                  </MotionButton>
-                </article>
-              )}
-              <div className="collection-layout__stack">
-                {genreCards.slice(1).map((card, index) => (
-                  <MotionArticle
-                    key={card.genre}
-                    className={`collection-card collection-card--${index}`}
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <h4>{card.genre}</h4>
-                    <p>
-                      {card.sampleBook ? `Try "${card.sampleBook.title}" by ${card.sampleBook.author}.` : 'Curated notes from the archive.'}
-                    </p>
-                    <MotionButton
-                      type="button"
-                      className="collection-card__action"
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => navigate(`/search?genres=${encodeURIComponent(card.genre)}&page=0`)}
-                    >
-                      Explore
-                    </MotionButton>
-                  </MotionArticle>
-                ))}
+            <div className="folio-skeleton">
+              <div className="folio-skeleton__lead" />
+              <div className="folio-skeleton__rail">
+                <div />
+                <div />
+                <div />
               </div>
             </div>
+          ) : (
+            <>
+              {leadCollection && (
+                <MotionArticle
+                  className="folio-lead"
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={collectionsInView ? { opacity: 1, y: 0 } : {}}
+                  transition={{ duration: 0.45 }}
+                >
+                  <div className="folio-lead__copy">
+                    <span className="folio-lead__meta">Opening shelf</span>
+                    <h4>{leadCollection.genre}</h4>
+                    <p>{collectionBlurb(leadCollection.genre, leadCollection.books)}</p>
+                    <button
+                      type="button"
+                      className="folio-link"
+                      onClick={() => navigate(`/search?genres=${encodeURIComponent(leadCollection.genre)}&page=0`)}
+                    >
+                      Open collection
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                  <div className="folio-lead__stage" aria-hidden={leadCollection.books.length === 0}>
+                    {(leadCollection.books.length ? leadCollection.books : [null, null, null])
+                      .slice(0, 3)
+                      .map((book, index) => (
+                        <button
+                          key={book?.id || `lead-cover-${index}`}
+                          type="button"
+                          className={`folio-cover folio-cover--${index}`}
+                          onClick={() => {
+                            if (book?.id) navigate(`/books/${book.id}`)
+                            else navigate(`/search?genres=${encodeURIComponent(leadCollection.genre)}&page=0`)
+                          }}
+                        >
+                          <img
+                            src={resolveMediaUrl(book?.coverUrl, '/home-book.jpg')}
+                            alt={book?.title || `${leadCollection.genre} cover`}
+                          />
+                        </button>
+                      ))}
+                  </div>
+                </MotionArticle>
+              )}
+
+              {railCollections.length > 0 && (
+                <div className="folio-rail">
+                  {railCollections.map((card, index) => (
+                    <MotionArticle
+                      key={card.genre}
+                      className={`folio-card folio-card--${index % 3}`}
+                      initial={{ opacity: 0, y: 22 }}
+                      animate={collectionsInView ? { opacity: 1, y: 0 } : {}}
+                      transition={{ duration: 0.4, delay: 0.1 + index * 0.08 }}
+                      whileHover={{ y: -5 }}
+                    >
+                      <div className="folio-card__stack">
+                        {(card.books.length ? card.books : [null, null, null]).slice(0, 3).map((book, coverIndex) => (
+                          <button
+                            key={book?.id || `${card.genre}-cover-${coverIndex}`}
+                            type="button"
+                            className={`folio-card__cover folio-card__cover--${coverIndex}`}
+                            onClick={() => {
+                              if (book?.id) navigate(`/books/${book.id}`)
+                              else navigate(`/search?genres=${encodeURIComponent(card.genre)}&page=0`)
+                            }}
+                          >
+                            <img
+                              src={resolveMediaUrl(book?.coverUrl, '/home-book.jpg')}
+                              alt={book?.title || `${card.genre} cover`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      <div className="folio-card__copy">
+                        <h4>{card.genre}</h4>
+                        <p>{collectionBlurb(card.genre, card.books)}</p>
+                        <button
+                          type="button"
+                          className="folio-link folio-link--compact"
+                          onClick={() => navigate(`/search?genres=${encodeURIComponent(card.genre)}&page=0`)}
+                        >
+                          Browse shelf
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      </div>
+                    </MotionArticle>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </MotionSection>
 
         <MotionSection
-          ref={communityRef}
-          className="community section motion-surface"
-          id="community"
+          ref={actionsRef}
+          className="section passage-board motion-surface"
+          id="ways-in"
           initial={{ opacity: 0, y: 28 }}
-          animate={communityInView ? { opacity: 1, y: 0 } : {}}
+          animate={actionsInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5 }}
         >
-          <div className="community__image" aria-label="Community section image" />
-          <div className="community__copy">
-            <p>BOOK CLUBS</p>
-            <h3>Reflections on the Written Word</h3>
-            <p>
-              Our contributors do not just review books; they archive experiences. Dive into long-form essays that explore the cultural
-              impact and emotional resonance of literature.
+          <div className="passage-board__intro">
+            <p className="passage-board__kicker">Beyond the shelf</p>
+            <h3>Keep exploring</h3>
+            <p className="passage-board__lede">
+              Recommendations, contributions, people, and clubs — pick a path and keep reading with others.
             </p>
-            <a href="#community">Explore our community</a>
+          </div>
+
+          <div className="passage-board__list">
+            {ACTION_LINKS.map((link, index) => (
+              <MotionButton
+                key={link.id}
+                type="button"
+                className="passage-row"
+                initial={{ opacity: 0, x: -10 }}
+                animate={actionsInView ? { opacity: 1, x: 0 } : {}}
+                transition={{ duration: 0.32, delay: 0.06 + index * 0.05 }}
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.995 }}
+                onClick={() => navigate(link.to, link.state ? { state: link.state } : undefined)}
+              >
+                <span className="passage-row__mark" aria-hidden="true" />
+                <span className="passage-row__text">
+                  <span className="passage-row__title">{link.title}</span>
+                  <span className="passage-row__blurb">{link.blurb}</span>
+                </span>
+                <span className="passage-row__go" aria-hidden="true">→</span>
+              </MotionButton>
+            ))}
           </div>
         </MotionSection>
       </div>

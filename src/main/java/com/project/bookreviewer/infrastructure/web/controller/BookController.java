@@ -96,9 +96,9 @@ public class BookController {
                 .title(request.getTitle())
                 .author(request.getAuthor())
                 .description(request.getDescription())
-                .coverUrl(request.getCoverUrl())
                 .publicationYear(request.getPublicationYear())
                 .genres(request.getGenres())
+                .coverUrl(request.getCoverUrl())
                 .build();
         Book updated = bookService.updateBook(id, updates);
         return ResponseEntity.ok(bookMapper.toResponse(updated));

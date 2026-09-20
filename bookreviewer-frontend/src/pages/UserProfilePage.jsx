@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
@@ -36,6 +36,7 @@ const STAT_MODAL_TITLES = {
 const UserProfilePage = () => {
   const MotionArticle = motion.article
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams()
   const { user, updateUser } = useAuth()
   const isOwnProfile = !id
@@ -191,6 +192,11 @@ const UserProfilePage = () => {
   }, [id, isOwnProfile, user?.userId])
 
   const viewingOwnAccount = isOwnProfile || String(profile?.id) === String(user?.userId)
+
+  useEffect(() => {
+    if (!viewingOwnAccount || location.hash !== '#recommendations' || recommendationsLoading) return
+    document.getElementById('recommendations')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [location.hash, recommendationsLoading, viewingOwnAccount])
 
   const handleToggleFollow = async () => {
     if (!profile?.id || followBusy || viewingOwnAccount) return
@@ -448,7 +454,7 @@ const UserProfilePage = () => {
         </section>
 
         {viewingOwnAccount && (
-          <section className="recommendations-section">
+          <section id="recommendations" className="recommendations-section">
             <div className="recommendations-header">
               <div>
                 <p className="recommendations-kicker">Curated for your next chapter</p>

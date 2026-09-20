@@ -28,10 +28,14 @@ public class ReviewController {
             @PathVariable Long bookId,
             @PageableDefault(size = 10) Pageable pageable,
             @RequestParam(required = false, defaultValue = "false") boolean includeSpoilers) {
+        Long currentUserId = securityUtils.getCurrentUserIdOrNull();
         Page<Review> reviews = reviewService.getReviewsByBook(bookId, pageable);
 
-        Page<ReviewResponse> responsePage = reviews.map(review ->
-                reviewMapper.toResponse(review, includeSpoilers));
+        Page<ReviewResponse> responsePage = reviews.map(review -> {
+            ReviewResponse response = reviewMapper.toResponse(review, includeSpoilers);
+            response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+            return response;
+        });
         return ResponseEntity.ok(responsePage);
     }
 
@@ -56,6 +60,13 @@ public class ReviewController {
     @DeleteMapping("/reviews/{reviewId}")
     public ResponseEntity<Void> deleteReview(@PathVariable Long reviewId) {
         reviewService.deleteReview(reviewId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reviews/{reviewId}/helpful")
+    public ResponseEntity<Void> toggleHelpful(@PathVariable Long reviewId) {
+        Long userId = securityUtils.getCurrentUserId();
+        reviewService.toggleHelpful(reviewId, userId);
         return ResponseEntity.noContent().build();
     }
 

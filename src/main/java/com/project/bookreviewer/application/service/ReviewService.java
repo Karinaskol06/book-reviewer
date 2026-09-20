@@ -6,9 +6,13 @@ import com.project.bookreviewer.application.dto.response.ReviewSnippetDto;
 import com.project.bookreviewer.domain.event.ReviewCreatedEvent;
 import com.project.bookreviewer.domain.exception.DuplicateReviewException;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
+import com.project.bookreviewer.domain.exception.UnauthorizedException;
 import com.project.bookreviewer.domain.model.Review;
+import com.project.bookreviewer.domain.model.ReviewHelpful;
+import com.project.bookreviewer.domain.port.outbound.ReviewHelpfulRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,10 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReviewService {
     private final ReviewRepositoryPort reviewRepository;
+    private final ReviewHelpfulRepositoryPort reviewHelpfulRepository;
     private final BookService bookService; // to update book rating cache
     private final ApplicationEventPublisher applicationEventPublisher;
 
@@ -89,8 +95,66 @@ public class ReviewService {
     public void deleteReview(Long reviewId) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        reviewHelpfulRepository.deleteByReviewId(reviewId);
         reviewRepository.deleteById(reviewId);
         bookService.updateBookRatingStats(review.getBookId());
+    }
+
+    @Transactional
+    public void toggleHelpful(Long reviewId, Long userId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+
+        if (review.getUserId().equals(userId)) {
+            throw new UnauthorizedException("You cannot mark your own review as helpful");
+        }
+
+        if (reviewHelpfulRepository.existsByReviewIdAndUserId(reviewId, userId)) {
+            reviewHelpfulRepository.deleteByReviewIdAndUserId(reviewId, userId);
+            saveHelpfulCount(review, Math.max(0, nullSafeCount(review.getHelpfulCount()) - 1));
+            log.info("User {} removed helpful from review {}", userId, reviewId);
+        } else {
+            reviewHelpfulRepository.save(ReviewHelpful.builder()
+                    .reviewId(reviewId)
+                    .userId(userId)
+                    .build());
+            saveHelpfulCount(review, nullSafeCount(review.getHelpfulCount()) + 1);
+            log.info("User {} marked review {} as helpful", userId, reviewId);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasUserMarkedHelpful(Long reviewId, Long userId) {
+        if (userId == null || reviewId == null) {
+            return false;
+        }
+        return reviewHelpfulRepository.existsByReviewIdAndUserId(reviewId, userId);
+    }
+
+    private int nullSafeCount(Integer count) {
+        return count != null ? count : 0;
+    }
+
+    private void saveHelpfulCount(Review review, int helpfulCount) {
+        reviewRepository.save(Review.builder()
+                .id(review.getId())
+                .userId(review.getUserId())
+                .bookId(review.getBookId())
+                .rating(review.getRating())
+                .verdict(review.getVerdict())
+                .detailedReview(review.getDetailedReview())
+                .pacing(review.getPacing())
+                .mood(review.getMood())
+                .whoIsItFor(review.getWhoIsItFor())
+                .whoIsItNotFor(review.getWhoIsItNotFor())
+                .contentWarnings(review.getContentWarnings())
+                .spoilerContent(review.getSpoilerContent())
+                .hasSpoiler(review.getHasSpoiler())
+                .tags(review.getTags())
+                .helpfulCount(helpfulCount)
+                .createdAt(review.getCreatedAt())
+                .updatedAt(review.getUpdatedAt())
+                .build());
     }
 
     public RatingStatsDto getRatingStatsDto(Long bookId) {

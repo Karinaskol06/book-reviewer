@@ -60,3 +60,7 @@ export const createReview = async (bookId, payload) => {
   const response = await api.post(`/books/${bookId}/reviews`, payload)
   return response.data
 }
+
+export const toggleReviewHelpful = async (reviewId) => {
+  await api.post(`/reviews/${reviewId}/helpful`)
+}

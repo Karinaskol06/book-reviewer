@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import AppChrome from '../components/layout/AppChrome.jsx'
+import { useAuth } from '../hooks/useAuth.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import {
   clearBookStatus,
@@ -8,6 +9,7 @@ import {
   getBookReviews,
   getBookStatus,
   setBookStatus,
+  toggleReviewHelpful,
 } from '../services/bookService.js'
 import './BookDetailPage.css'
 
@@ -28,7 +30,9 @@ const BookDetailPage = () => {
   const { id } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const reviewPageSearchInProgress = useRef(false)
+  const [helpfulBusyId, setHelpfulBusyId] = useState(null)
 
   const [book, setBook] = useState(null)
   const [reviewsPage, setReviewsPage] = useState({ content: [], totalPages: 0, number: 0 })
@@ -139,6 +143,31 @@ const BookDetailPage = () => {
 
     await setBookStatus(id, status)
     setCurrentStatus(status)
+  }
+
+  const handleToggleHelpful = async (review) => {
+    if (!review?.id || helpfulBusyId != null) return
+    const isOwnReview = user?.userId != null && Number(review.user?.id) === Number(user.userId)
+    if (isOwnReview) return
+
+    setHelpfulBusyId(review.id)
+    try {
+      await toggleReviewHelpful(review.id)
+      setReviewsPage((prev) => ({
+        ...prev,
+        content: (prev.content || []).map((entry) => {
+          if (Number(entry.id) !== Number(review.id)) return entry
+          const marked = Boolean(entry.hasHelpful)
+          return {
+            ...entry,
+            hasHelpful: !marked,
+            helpfulCount: Math.max(0, (entry.helpfulCount || 0) + (marked ? -1 : 1)),
+          }
+        }),
+      }))
+    } finally {
+      setHelpfulBusyId(null)
+    }
   }
 
   if (loading) {
@@ -307,6 +336,20 @@ const BookDetailPage = () => {
                 {includeSpoilers && review.hasSpoiler && review.spoilerContent && (
                   <p className="spoiler-text">{review.spoilerContent}</p>
                 )}
+                <div className="review-helpful">
+                  <button
+                    type="button"
+                    className={`review-helpful__btn${review.hasHelpful ? ' is-active' : ''}`}
+                    disabled={
+                      helpfulBusyId === review.id
+                      || (user?.userId != null && Number(review.user?.id) === Number(user.userId))
+                    }
+                    onClick={() => handleToggleHelpful(review)}
+                  >
+                    {review.hasHelpful ? 'Helpful' : 'Mark helpful'}
+                    <span>{review.helpfulCount || 0}</span>
+                  </button>
+                </div>
               </article>
             ))}
           </div>

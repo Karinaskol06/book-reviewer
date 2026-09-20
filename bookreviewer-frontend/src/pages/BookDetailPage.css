@@ -307,6 +307,39 @@
   font-size: 0.73rem;
 }
 
+.review-helpful {
+  margin-top: 0.85rem;
+}
+
+.review-helpful__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(2, 40, 89, 0.2);
+  background: #fff9ee;
+  color: #022859;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.review-helpful__btn span {
+  min-width: 1.2rem;
+  color: #749283;
+}
+
+.review-helpful__btn.is-active {
+  background: rgba(116, 146, 131, 0.2);
+  border-color: rgba(116, 146, 131, 0.45);
+}
+
+.review-helpful__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .spoiler-text {
   margin-top: 0.7rem !important;
   padding: 0.6rem;
