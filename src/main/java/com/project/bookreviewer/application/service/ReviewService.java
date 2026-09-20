@@ -226,6 +226,12 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
+    public Review getReview(Long reviewId) {
+        return reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+    }
+
+    @Transactional(readOnly = true)
     public Page<Review> getReviewsByBook(Long bookId, Pageable pageable) {
         return reviewRepository.findByBookId(bookId, pageable);
     }

@@ -111,6 +111,14 @@ function App() {
             }
           />
           <Route
+            path="/books/:id/review/:reviewId/edit"
+            element={
+              <ProtectedRoute>
+                <WriteReviewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/books/:id"
             element={
               <ProtectedRoute>

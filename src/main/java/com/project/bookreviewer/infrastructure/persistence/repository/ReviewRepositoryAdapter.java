@@ -140,6 +140,8 @@ public class ReviewRepositoryAdapter implements ReviewRepositoryPort {
                 .hasSpoiler(review.getHasSpoiler())
                 .tags(review.getTags())
                 .helpfulCount(review.getHelpfulCount())
+                .createdAt(review.getCreatedAt())
+                .updatedAt(review.getUpdatedAt())
                 .build();
     }
 

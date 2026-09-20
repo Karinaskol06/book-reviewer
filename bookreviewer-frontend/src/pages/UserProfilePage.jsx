@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
-import { getBookDetail } from '../services/bookService.js'
+import { getBookDetail, deleteReview } from '../services/bookService.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import {
   exportReadingListPdf,
@@ -61,6 +61,7 @@ const UserProfilePage = () => {
   const [statsModal, setStatsModal] = useState(null)
   const [modalPeople, setModalPeople] = useState([])
   const [modalPeopleLoading, setModalPeopleLoading] = useState(false)
+  const [deletingReviewId, setDeletingReviewId] = useState(null)
 
   useEffect(() => {
     const load = async () => {
@@ -222,6 +223,21 @@ const UserProfilePage = () => {
       setFollowError(isFollowing ? 'Could not unfollow. Try again.' : 'Could not follow. Try again.')
     } finally {
       setFollowBusy(false)
+    }
+  }
+
+  const handleDeleteReview = async (entry) => {
+    const reviewId = entry?.review?.id
+    if (!isOwnProfile || !reviewId || deletingReviewId != null) return
+    const confirmed = window.confirm('Delete this review? This cannot be undone.')
+    if (!confirmed) return
+
+    setDeletingReviewId(reviewId)
+    try {
+      await deleteReview(reviewId)
+      setMyReviews((prev) => prev.filter((item) => Number(item.review?.id) !== Number(reviewId)))
+    } finally {
+      setDeletingReviewId(null)
     }
   }
 
@@ -632,6 +648,32 @@ const UserProfilePage = () => {
                       <span aria-hidden="true"> · </span>
                       Helpful {entry.review.helpfulCount || 0}
                     </p>
+
+                    {isOwnProfile && (
+                      <div className="review-entry__actions">
+                        <button
+                          type="button"
+                          className="review-entry__action"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            navigate(`/books/${entry.bookId}/review/${entry.review.id}/edit`)
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="review-entry__action review-entry__action--danger"
+                          disabled={deletingReviewId === entry.review.id}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleDeleteReview(entry)
+                          }}
+                        >
+                          {deletingReviewId === entry.review.id ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </article>
               )

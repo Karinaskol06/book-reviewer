@@ -61,6 +61,22 @@ export const createReview = async (bookId, payload) => {
   return response.data
 }
 
+export const getReview = async (reviewId, { includeSpoilers = true } = {}) => {
+  const response = await api.get(`/reviews/${reviewId}`, {
+    params: { includeSpoilers },
+  })
+  return response.data
+}
+
+export const updateReview = async (reviewId, payload) => {
+  const response = await api.put(`/reviews/${reviewId}`, payload)
+  return response.data
+}
+
+export const deleteReview = async (reviewId) => {
+  await api.delete(`/reviews/${reviewId}`)
+}
+
 export const toggleReviewHelpful = async (reviewId) => {
   await api.post(`/reviews/${reviewId}/helpful`)
 }

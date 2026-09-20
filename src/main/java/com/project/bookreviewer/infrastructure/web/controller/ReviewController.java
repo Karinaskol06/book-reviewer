@@ -39,6 +39,18 @@ public class ReviewController {
         return ResponseEntity.ok(responsePage);
     }
 
+    @GetMapping("/reviews/{reviewId}")
+    public ResponseEntity<ReviewResponse> getReview(
+            @PathVariable Long reviewId,
+            @RequestParam(required = false, defaultValue = "false") boolean includeSpoilers) {
+        Long currentUserId = securityUtils.getCurrentUserIdOrNull();
+        Review review = reviewService.getReview(reviewId);
+        boolean showSpoilers = includeSpoilers || (currentUserId != null && currentUserId.equals(review.getUserId()));
+        ReviewResponse response = reviewMapper.toResponse(review, showSpoilers);
+        response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/books/{bookId}/reviews")
     public ResponseEntity<ReviewResponse> createReview(
             @PathVariable Long bookId,
@@ -54,7 +66,10 @@ public class ReviewController {
             @PathVariable Long reviewId,
             @Valid @RequestBody CreateReviewRequest request) {
         Review review = reviewService.updateReview(reviewId, request);
-        return ResponseEntity.ok(reviewMapper.toResponse(review));
+        Long currentUserId = securityUtils.getCurrentUserIdOrNull();
+        ReviewResponse response = reviewMapper.toResponse(review, true);
+        response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/reviews/{reviewId}")
