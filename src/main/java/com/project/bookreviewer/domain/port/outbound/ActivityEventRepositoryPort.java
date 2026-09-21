@@ -20,4 +20,13 @@ public interface ActivityEventRepositoryPort {
 
     boolean existsByActorIdAndTargetUserIdAndBookIdAndTypeAndCreatedAt(
             Long actorId, Long targetUserId, Long bookId, ActivityType type, LocalDateTime createdAt);
+
+    boolean existsByReviewIdAndTargetUserId(Long reviewId, Long targetUserId);
+
+    boolean existsByActorIdAndTargetUserIdAndBookIdAndType(
+            Long actorId, Long targetUserId, Long bookId, ActivityType type);
+
+    void deleteByReviewId(Long reviewId);
+
+    void deleteByActorIdAndTargetUserId(Long actorId, Long targetUserId);
 }

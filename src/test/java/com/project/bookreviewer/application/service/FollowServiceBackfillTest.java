@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -55,12 +56,12 @@ class FollowServiceBackfillTest {
                 reviewRepository,
                 statusRepository
         );
-        when(backfillProperties.getDays()).thenReturn(7);
-        when(backfillProperties.getLimit()).thenReturn(20);
-        when(userService.getUserById(1L)).thenReturn(User.builder().id(1L).username("me").build());
-        when(userService.getUserById(2L)).thenReturn(User.builder().id(2L).username("alice").build());
-        when(followRepository.existsByFollowerAndFollowing(1L, 2L)).thenReturn(false);
-        when(followRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(backfillProperties.getDays()).thenReturn(7);
+        lenient().when(backfillProperties.getLimit()).thenReturn(20);
+        lenient().when(userService.getUserById(1L)).thenReturn(User.builder().id(1L).username("me").build());
+        lenient().when(userService.getUserById(2L)).thenReturn(User.builder().id(2L).username("alice").build());
+        lenient().when(followRepository.existsByFollowerAndFollowing(1L, 2L)).thenReturn(false);
+        lenient().when(followRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -86,8 +87,9 @@ class FollowServiceBackfillTest {
                 .thenReturn(List.of(review));
         when(statusRepository.findRecentByUserId(eq(2L), any(LocalDateTime.class), anyInt()))
                 .thenReturn(List.of(status));
-        when(activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndTypeAndCreatedAt(
-                any(), any(), any(), any(), any())).thenReturn(false);
+        when(activityRepository.existsByReviewIdAndTargetUserId(any(), any())).thenReturn(false);
+        when(activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndType(
+                any(), any(), any(), any())).thenReturn(false);
 
         followService.follow(1L, 2L);
 
@@ -115,6 +117,76 @@ class FollowServiceBackfillTest {
     }
 
     @Test
+    void unfollow_removesFollowEvenIfActivityCleanupFails() {
+        org.mockito.Mockito.doThrow(new RuntimeException("activity cleanup failed"))
+                .when(activityRepository).deleteByActorIdAndTargetUserId(2L, 1L);
+
+        org.assertj.core.api.Assertions.assertThatCode(() -> followService.unfollow(1L, 2L))
+                .doesNotThrowAnyException();
+
+        verify(followRepository).delete(1L, 2L);
+        verify(activityRepository).deleteByActorIdAndTargetUserId(2L, 1L);
+    }
+
+    @Test
+    void unfollow_removesActorEventsFromFollowerFeed() {
+        followService.unfollow(1L, 2L);
+
+        verify(followRepository).delete(1L, 2L);
+        verify(activityRepository).deleteByActorIdAndTargetUserId(2L, 1L);
+        verify(activityRepository, never()).save(any());
+    }
+
+    @Test
+    void follow_whenAlreadyFollowing_doesNotBackfillAgain() {
+        when(followRepository.existsByFollowerAndFollowing(1L, 2L)).thenReturn(true);
+
+        followService.follow(1L, 2L);
+
+        verify(followRepository, never()).save(any());
+        verify(reviewRepository, never()).findRecentByUserId(any(), any(), anyInt());
+        verify(statusRepository, never()).findRecentByUserId(any(), any(), anyInt());
+        verify(activityRepository, never()).save(any());
+    }
+
+    @Test
+    void unfollowThenFollow_backfillsAgain() {
+        LocalDateTime reviewAt = LocalDateTime.now().minusDays(1);
+        when(reviewRepository.findRecentByUserId(eq(2L), any(LocalDateTime.class), anyInt()))
+                .thenReturn(List.of(
+                        Review.builder().id(11L).userId(2L).bookId(100L).rating(5).createdAt(reviewAt).build()
+                ));
+        when(statusRepository.findRecentByUserId(eq(2L), any(LocalDateTime.class), anyInt()))
+                .thenReturn(List.of());
+        when(activityRepository.existsByReviewIdAndTargetUserId(11L, 1L)).thenReturn(false);
+
+        followService.unfollow(1L, 2L);
+        followService.follow(1L, 2L);
+
+        verify(activityRepository).deleteByActorIdAndTargetUserId(2L, 1L);
+        ArgumentCaptor<ActivityEvent> captor = ArgumentCaptor.forClass(ActivityEvent.class);
+        verify(activityRepository).save(captor.capture());
+        assertThat(captor.getValue().getReviewId()).isEqualTo(11L);
+        assertThat(captor.getValue().getTargetUserId()).isEqualTo(1L);
+    }
+
+    @Test
+    void follow_skipsBackfillWhenReviewAlreadyInFollowerFeed() {
+        LocalDateTime reviewAt = LocalDateTime.now().minusDays(1);
+        when(reviewRepository.findRecentByUserId(eq(2L), any(LocalDateTime.class), anyInt()))
+                .thenReturn(List.of(
+                        Review.builder().id(11L).userId(2L).bookId(100L).rating(5).createdAt(reviewAt).build()
+                ));
+        when(statusRepository.findRecentByUserId(eq(2L), any(LocalDateTime.class), anyInt()))
+                .thenReturn(List.of());
+        when(activityRepository.existsByReviewIdAndTargetUserId(11L, 1L)).thenReturn(true);
+
+        followService.follow(1L, 2L);
+
+        verify(activityRepository, never()).save(any());
+    }
+
+    @Test
     void follow_respectsBackfillLimitAcrossReviewsAndStatuses() {
         when(backfillProperties.getLimit()).thenReturn(2);
         LocalDateTime t1 = LocalDateTime.now().minusDays(3);
@@ -131,8 +203,9 @@ class FollowServiceBackfillTest {
                         UserBookStatus.builder().id(1L).userId(2L).bookId(3L)
                                 .status(ReadingStatus.READ).updatedAt(t2).build()
                 ));
-        when(activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndTypeAndCreatedAt(
-                any(), any(), any(), any(), any())).thenReturn(false);
+        when(activityRepository.existsByReviewIdAndTargetUserId(any(), any())).thenReturn(false);
+        when(activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndType(
+                any(), any(), any(), any())).thenReturn(false);
 
         followService.follow(1L, 2L);
 

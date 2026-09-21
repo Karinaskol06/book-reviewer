@@ -18,6 +18,7 @@
 }
 
 .feed-shell {
+  flex: 1 0 auto;
   width: min(var(--feed-max), calc(100% - 2rem));
   margin: 1.25rem auto 2.5rem;
   padding: 1.5rem clamp(1.1rem, 3vw, 2rem) 2rem;

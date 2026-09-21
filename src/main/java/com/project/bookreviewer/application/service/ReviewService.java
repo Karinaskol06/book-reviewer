@@ -4,6 +4,7 @@ import com.project.bookreviewer.application.dto.request.CreateReviewRequest;
 import com.project.bookreviewer.application.dto.response.RatingStatsDto;
 import com.project.bookreviewer.application.dto.response.ReviewSnippetDto;
 import com.project.bookreviewer.domain.event.ReviewCreatedEvent;
+import com.project.bookreviewer.domain.event.ReviewDeletedEvent;
 import com.project.bookreviewer.domain.exception.DuplicateReviewException;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.exception.UnauthorizedException;
@@ -96,6 +97,7 @@ public class ReviewService {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
         reviewHelpfulRepository.deleteByReviewId(reviewId);
+        applicationEventPublisher.publishEvent(new ReviewDeletedEvent(this, reviewId));
         reviewRepository.deleteById(reviewId);
         bookService.updateBookRatingStats(review.getBookId());
     }

@@ -1,6 +1,7 @@
 package com.project.bookreviewer.application.service;
 
 import com.project.bookreviewer.application.dto.request.CreateReviewRequest;
+import com.project.bookreviewer.domain.event.ReviewDeletedEvent;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.Pacing;
 import com.project.bookreviewer.domain.model.Review;
@@ -116,7 +117,7 @@ class ReviewServiceUpdateDeleteTest {
     }
 
     @Test
-    void deleteReview_cascadesHelpfulVotes_andRefreshesBookStats() {
+    void deleteReview_cascadesHelpfulVotes_publishesDeletedEvent_andRefreshesBookStats() {
         Review existing = Review.builder()
                 .id(10L)
                 .userId(1L)
@@ -129,6 +130,10 @@ class ReviewServiceUpdateDeleteTest {
         reviewService.deleteReview(10L);
 
         verify(reviewHelpfulRepository).deleteByReviewId(10L);
+        verify(applicationEventPublisher).publishEvent(org.mockito.ArgumentMatchers.argThat(event ->
+                event instanceof ReviewDeletedEvent deleted
+                        && deleted.getReviewId().equals(10L)
+        ));
         verify(reviewRepository).deleteById(10L);
         verify(bookService).updateBookRatingStats(5L);
     }

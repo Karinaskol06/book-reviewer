@@ -1,6 +1,7 @@
 package com.project.bookreviewer.application.service;
 
 import com.project.bookreviewer.domain.event.ReviewCreatedEvent;
+import com.project.bookreviewer.domain.event.ReviewDeletedEvent;
 import com.project.bookreviewer.domain.event.StatusChangedEvent;
 import com.project.bookreviewer.domain.event.BookCreatedEvent;
 import com.project.bookreviewer.domain.event.FollowCreatedEvent;
@@ -60,10 +61,18 @@ public class ActivityService {
                     .bookId(event.getReview().getBookId())
                     .reviewId(event.getReview().getId())
                     .additionalData("{\"rating\": " + event.getReview().getRating() + "}")
+                    .createdAt(event.getReview().getCreatedAt())
                     .build();
             activityRepository.save(followerEvent);
         }
         log.info("Review created events for user {} and {} followers", event.getReview().getUserId(), followers.size());
+    }
+
+    @EventListener
+    @Transactional
+    public void handleReviewDeleted(ReviewDeletedEvent event) {
+        activityRepository.deleteByReviewId(event.getReviewId());
+        log.info("Removed feed events for deleted review {}", event.getReviewId());
     }
 
     @EventListener

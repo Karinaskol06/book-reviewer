@@ -15,6 +15,7 @@ import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
 import com.project.bookreviewer.infrastructure.persistence.config.FeedBackfillProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FollowService {
     private final FollowRepositoryPort followRepository;
     private final UserService userService;
@@ -44,21 +46,28 @@ public class FollowService {
         userService.getUserById(followerId);
         userService.getUserById(followingId);
 
-        if (!followRepository.existsByFollowerAndFollowing(followerId, followingId)) {
-            Follow follow = Follow.builder()
-                    .followerId(followerId)
-                    .followingId(followingId)
-                    .build();
-            followRepository.save(follow);
-            applicationEventPublisher.publishEvent(new FollowCreatedEvent(this, followerId, followingId));
+        if (followRepository.existsByFollowerAndFollowing(followerId, followingId)) {
+            return;
         }
 
+        Follow follow = Follow.builder()
+                .followerId(followerId)
+                .followingId(followingId)
+                .build();
+        followRepository.save(follow);
+        applicationEventPublisher.publishEvent(new FollowCreatedEvent(this, followerId, followingId));
         backfillRecentActivities(followerId, followingId);
     }
 
     @Transactional
     public void unfollow(Long followerId, Long followingId) {
         followRepository.delete(followerId, followingId);
+        try {
+            activityRepository.deleteByActorIdAndTargetUserId(followingId, followerId);
+        } catch (RuntimeException ex) {
+            log.warn("Follow removed for follower={} following={}, but feed cleanup failed: {}",
+                    followerId, followingId, ex.getMessage());
+        }
     }
 
     public boolean isFollowing(Long followerId, Long followingId) {
@@ -162,12 +171,15 @@ public class FollowService {
             if (candidate.getCreatedAt() == null) {
                 continue;
             }
-            if (activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndTypeAndCreatedAt(
+            boolean alreadyPresent = candidate.getReviewId() != null
+                    ? activityRepository.existsByReviewIdAndTargetUserId(
+                    candidate.getReviewId(), candidate.getTargetUserId())
+                    : activityRepository.existsByActorIdAndTargetUserIdAndBookIdAndType(
                     candidate.getActorId(),
                     candidate.getTargetUserId(),
                     candidate.getBookId(),
-                    candidate.getType(),
-                    candidate.getCreatedAt())) {
+                    candidate.getType());
+            if (alreadyPresent) {
                 continue;
             }
             activityRepository.save(candidate);

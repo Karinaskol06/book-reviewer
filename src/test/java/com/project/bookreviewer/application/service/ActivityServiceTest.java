@@ -3,6 +3,7 @@ package com.project.bookreviewer.application.service;
 import com.project.bookreviewer.domain.event.BookCreatedEvent;
 import com.project.bookreviewer.domain.event.FollowCreatedEvent;
 import com.project.bookreviewer.domain.event.ReviewCreatedEvent;
+import com.project.bookreviewer.domain.event.ReviewDeletedEvent;
 import com.project.bookreviewer.domain.event.StatusChangedEvent;
 import com.project.bookreviewer.domain.model.ActivityEvent;
 import com.project.bookreviewer.domain.model.ActivityType;
@@ -19,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -81,7 +83,8 @@ class ActivityServiceTest {
 
     @Test
     void handleReviewCreated_writesReviewedEventForEachFollower() {
-        Review review = Review.builder().id(3L).userId(5L).bookId(40L).rating(5).build();
+        LocalDateTime createdAt = LocalDateTime.of(2024, 6, 1, 12, 0);
+        Review review = Review.builder().id(3L).userId(5L).bookId(40L).rating(5).createdAt(createdAt).build();
         when(followRepository.findFollowers(5L)).thenReturn(List.of(
                 Follow.builder().followerId(1L).followingId(5L).build()
         ));
@@ -94,5 +97,14 @@ class ActivityServiceTest {
         assertThat(saved.getType()).isEqualTo(ActivityType.REVIEWED);
         assertThat(saved.getReviewId()).isEqualTo(3L);
         assertThat(saved.getTargetUserId()).isEqualTo(1L);
+        assertThat(saved.getCreatedAt()).isEqualTo(createdAt);
+    }
+
+    @Test
+    void handleReviewDeleted_removesFeedEventsForReview() {
+        activityService.handleReviewDeleted(new ReviewDeletedEvent(this, 3L));
+
+        verify(activityRepository).deleteByReviewId(3L);
+        verify(activityRepository, never()).save(any());
     }
 }

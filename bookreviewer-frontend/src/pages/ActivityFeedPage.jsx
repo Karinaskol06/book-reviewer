@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useInView } from 'react-intersection-observer'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -8,6 +8,8 @@ import { getFeedPage } from '../services/feedService.js'
 import { followUser, searchUsersByUsername, unfollowUser } from '../services/userService.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import './ActivityFeedPage.css'
+
+const FEED_PAGE_SIZE = 6
 
 const getRelativeTime = (value) => {
   if (!value) return 'Recently'
@@ -26,19 +28,23 @@ const getRelativeTime = (value) => {
 
 const normalizeFeedResponse = (payload) => {
   if (Array.isArray(payload)) {
-    return { content: payload, hasNext: payload.length > 0 }
+    return { content: payload, hasNext: false }
   }
 
-  const content = payload?.content || payload?.items || []
-  const hasNext =
-    payload?.hasNext ??
-    payload?.nextPage ??
-    (typeof payload?.last === 'boolean' ? !payload.last : undefined) ??
-    (typeof payload?.totalPages === 'number' && typeof payload?.number === 'number'
-      ? payload.number + 1 < payload.totalPages
-      : content.length > 0)
+  const content = Array.isArray(payload?.content)
+    ? payload.content
+    : (Array.isArray(payload?.items) ? payload.items : [])
 
-  return { content, hasNext: Boolean(hasNext) }
+  let hasNext = false
+  if (typeof payload?.last === 'boolean') {
+    hasNext = !payload.last
+  } else if (typeof payload?.totalPages === 'number' && typeof payload?.number === 'number') {
+    hasNext = payload.number + 1 < payload.totalPages
+  } else if (typeof payload?.hasNext === 'boolean') {
+    hasNext = payload.hasNext
+  }
+
+  return { content, hasNext }
 }
 
 const getActivityType = (activity) => {
@@ -328,7 +334,7 @@ const ActivityFeedPage = () => {
   const location = useLocation()
   const { user } = useAuth()
   const reduceMotion = useReducedMotion()
-  const { ref, inView } = useInView({ rootMargin: '320px' })
+  const { ref, inView } = useInView({ rootMargin: '120px', triggerOnce: false })
 
   const [activities, setActivities] = useState([])
   const [findOpen, setFindOpen] = useState(() => Boolean(location.state?.openFind))
@@ -337,20 +343,35 @@ const ActivityFeedPage = () => {
   const [searchingUsers, setSearchingUsers] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
-  const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [error, setError] = useState('')
+  const [followBusyId, setFollowBusyId] = useState(null)
+
+  const inFlightRef = useRef(false)
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     if (location.state?.openFind) setFindOpen(true)
   }, [location.state])
 
-  const loadFeed = useCallback(async (targetPage) => {
-    setLoading(true)
+  const loadFeed = useCallback(async (targetPage, { force = false } = {}) => {
+    if (inFlightRef.current && !force) return
+
+    const requestId = ++requestIdRef.current
+    inFlightRef.current = true
     setError('')
+    if (targetPage === 0) {
+      setLoadingInitial(true)
+      setHasMore(true)
+    } else {
+      setLoadingMore(true)
+    }
 
     try {
-      const raw = await getFeedPage({ page: targetPage, size: 6 })
+      const raw = await getFeedPage({ page: targetPage, size: FEED_PAGE_SIZE })
+      if (requestId !== requestIdRef.current) return
+
       const { content, hasNext } = normalizeFeedResponse(raw)
       const mapped = dedupeActivities(
         content
@@ -360,25 +381,38 @@ const ActivityFeedPage = () => {
             return Number(entry.actorId) !== Number(user.userId)
           }),
       )
-      setActivities((prev) => dedupeActivities(targetPage === 0 ? mapped : [...prev, ...mapped]))
-      setHasMore(hasNext && mapped.length > 0)
+
+      setActivities((prev) => (
+        targetPage === 0
+          ? mapped
+          : dedupeActivities([...prev, ...mapped])
+      ))
+      setHasMore(Boolean(hasNext) && mapped.length > 0)
       setPage(targetPage)
     } catch {
+      if (requestId !== requestIdRef.current) return
       setError('We could not load your reading circle right now.')
+      if (targetPage === 0) {
+        setActivities([])
+        setHasMore(false)
+      }
     } finally {
-      setLoading(false)
-      setLoadingInitial(false)
+      if (requestId === requestIdRef.current) {
+        inFlightRef.current = false
+        setLoadingInitial(false)
+        setLoadingMore(false)
+      }
     }
   }, [user?.userId])
 
   useEffect(() => {
-    loadFeed(0)
+    loadFeed(0, { force: true })
   }, [loadFeed])
 
   useEffect(() => {
-    if (!inView || loading || !hasMore || loadingInitial) return
+    if (!inView || loadingInitial || loadingMore || !hasMore || inFlightRef.current) return
     loadFeed(page + 1)
-  }, [hasMore, inView, loadFeed, loading, loadingInitial, page])
+  }, [hasMore, inView, loadFeed, loadingInitial, loadingMore, page])
 
   useEffect(() => {
     const query = userSearch.trim()
@@ -399,19 +433,30 @@ const ActivityFeedPage = () => {
   }, [userSearch])
 
   const handleToggleFollow = async (targetUserId, currentlyFollowing) => {
+    if (followBusyId != null) return
+    setFollowBusyId(targetUserId)
     try {
       if (currentlyFollowing) {
         await unfollowUser(targetUserId)
+        setActivities((prev) => prev.filter((item) => Number(item.actorId) !== Number(targetUserId)))
+        setUserResults((prev) => prev.map((entry) => (
+          Number(entry.id) === Number(targetUserId)
+            ? { ...entry, following: false }
+            : entry
+        )))
       } else {
         await followUser(targetUserId)
+        setUserResults((prev) => prev.map((entry) => (
+          Number(entry.id) === Number(targetUserId)
+            ? { ...entry, following: true }
+            : entry
+        )))
+        await loadFeed(0, { force: true })
       }
-      setUserResults((prev) => prev.map((entry) => (
-        Number(entry.id) === Number(targetUserId)
-          ? { ...entry, following: !currentlyFollowing }
-          : entry
-      )))
     } catch (followError) {
       console.error('Follow toggle failed', followError)
+    } finally {
+      setFollowBusyId(null)
     }
   }
 
@@ -494,9 +539,12 @@ const ActivityFeedPage = () => {
                           <button
                             type="button"
                             className="feed-find__follow"
+                            disabled={followBusyId === searchUser.id}
                             onClick={() => handleToggleFollow(searchUser.id, Boolean(searchUser.following))}
                           >
-                            {searchUser.following ? 'Unfollow' : 'Follow'}
+                            {followBusyId === searchUser.id
+                              ? '…'
+                              : (searchUser.following ? 'Unfollow' : 'Follow')}
                           </button>
                         </article>
                       ))}
@@ -531,7 +579,7 @@ const ActivityFeedPage = () => {
               <div className="feed-columns__col">
                 {leftColumn.map((activity) => (
                   <FeedCard
-                    key={activity.id}
+                    key={activityDedupeKey(activity)}
                     activity={activity}
                     onNavigate={navigate}
                     reduceMotion={reduceMotion}
@@ -541,7 +589,7 @@ const ActivityFeedPage = () => {
               <div className="feed-columns__col">
                 {rightColumn.map((activity) => (
                   <FeedCard
-                    key={activity.id}
+                    key={activityDedupeKey(activity)}
                     activity={activity}
                     onNavigate={navigate}
                     reduceMotion={reduceMotion}
@@ -551,8 +599,8 @@ const ActivityFeedPage = () => {
             </div>
           )}
 
-          <div ref={ref} className="feed-observer" />
-          {loading && !loadingInitial && <p className="feed-muted">Loading more updates…</p>}
+          {hasMore && !loadingInitial && <div ref={ref} className="feed-observer" />}
+          {loadingMore && <p className="feed-muted">Loading more updates…</p>}
         </section>
       </div>
     </AppChrome>
