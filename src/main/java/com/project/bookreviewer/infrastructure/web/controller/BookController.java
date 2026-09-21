@@ -3,8 +3,8 @@ package com.project.bookreviewer.infrastructure.web.controller;
 import com.project.bookreviewer.application.dto.request.CreateBookRequest;
 import com.project.bookreviewer.application.dto.response.BookDetailResponse;
 import com.project.bookreviewer.application.dto.response.BookResponse;
+import com.project.bookreviewer.application.dto.response.CoverUploadResponse;
 import com.project.bookreviewer.application.dto.response.DuplicateCheckResponse;
-import com.project.bookreviewer.application.dto.response.RatingStatsDto;
 import com.project.bookreviewer.application.mapper.BookMapper;
 import com.project.bookreviewer.application.service.BookService;
 import com.project.bookreviewer.application.service.ReviewService;
@@ -17,12 +17,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -69,8 +71,9 @@ public class BookController {
     }
 
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<BookResponse> createBook(@Valid @RequestBody CreateBookRequest request) {
-        Long actorUserId = securityUtils.isAuthenticated() ? securityUtils.getCurrentUserId() : null;
+        Long actorUserId = securityUtils.getCurrentUserId();
         Book book = Book.builder()
                 .title(request.getTitle())
                 .author(request.getAuthor())
@@ -84,11 +87,39 @@ public class BookController {
                 .body(bookMapper.toResponse(created));
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<BookResponse> updateBook(
+            @PathVariable Long id,
+            @Valid @RequestBody CreateBookRequest request) {
+        Book updates = Book.builder()
+                .title(request.getTitle())
+                .author(request.getAuthor())
+                .description(request.getDescription())
+                .publicationYear(request.getPublicationYear())
+                .genres(request.getGenres())
+                .coverUrl(request.getCoverUrl())
+                .build();
+        Book updated = bookService.updateBook(id, updates);
+        return ResponseEntity.ok(bookMapper.toResponse(updated));
+    }
+
+    @PostMapping(value = "/covers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CoverUploadResponse> uploadCover(@RequestParam("file") MultipartFile file) {
+        String key = bookService.storeCover(file);
+        return ResponseEntity.ok(CoverUploadResponse.builder()
+                .coverUrl(bookService.toPublicCoverUrl(key))
+                .message("Cover uploaded successfully")
+                .build());
+    }
+
     @GetMapping("/check")
     public ResponseEntity<DuplicateCheckResponse> checkDuplicate(
             @RequestParam String title,
-            @RequestParam String author) {
-        return ResponseEntity.ok(bookService.checkDuplicate(title, author));
+            @RequestParam String author,
+            @RequestParam(required = false) Long excludeBookId) {
+        return ResponseEntity.ok(bookService.checkDuplicate(title, author, excludeBookId));
     }
 
     @GetMapping("/search")

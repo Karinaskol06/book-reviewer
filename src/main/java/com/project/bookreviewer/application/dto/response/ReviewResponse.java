@@ -24,6 +24,7 @@ public class ReviewResponse {
     private String spoilerContent; // only included if user requests or has revealed
     private Set<String> tags;
     private Integer helpfulCount;
+    private Boolean hasHelpful;
     private LocalDateTime createdAt;
 
     @Data @Builder

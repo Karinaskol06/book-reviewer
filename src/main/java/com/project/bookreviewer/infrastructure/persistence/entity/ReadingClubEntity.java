@@ -35,6 +35,9 @@ public class ReadingClubEntity {
     @Column(name = "next_meeting_at")
     private LocalDateTime nextMeetingAt;
 
+    @Column(name = "meeting_link", length = 1000)
+    private String meetingLink;
+
     @Column(name = "created_by")
     private Long createdBy;
 

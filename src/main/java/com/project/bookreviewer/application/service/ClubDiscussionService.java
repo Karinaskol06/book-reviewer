@@ -101,11 +101,13 @@ public class ClubDiscussionService {
     }
 
     public Page<ClubPostResponse> getClubPosts(Long clubId, Pageable pageable, Long userId) {
-        // Verify user can view club (public or member)
         ReadingClub club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new ResourceNotFoundException("Club not found"));
 
-        if (club.getIsPrivate() && userId != null) {
+        if (Boolean.TRUE.equals(club.getIsPrivate())) {
+            if (userId == null) {
+                throw new UnauthorizedException("Authentication required for private club discussions");
+            }
             validateClubMembership(clubId, userId);
         }
 
@@ -162,14 +164,19 @@ public class ClubDiscussionService {
     }
 
     private void validateClubMembership(Long clubId, Long userId) {
-        if (!membershipRepository.existsByClubIdAndUserId(clubId, userId)) {
-            throw new UnauthorizedException("User is not a member of this club");
+        ClubMembership membership = membershipRepository.findByClubIdAndUserId(clubId, userId)
+                .orElseThrow(() -> new UnauthorizedException("User is not a member of this club"));
+        if (membership.getStatus() != ClubMembershipStatus.ACTIVE) {
+            throw new UnauthorizedException("Only active members can participate in discussions");
         }
     }
 
     private void validateClubRole(Long clubId, Long userId, ClubRole... allowedRoles) {
         ClubMembership membership = membershipRepository.findByClubIdAndUserId(clubId, userId)
                 .orElseThrow(() -> new UnauthorizedException("User is not a member of this club"));
+        if (membership.getStatus() != ClubMembershipStatus.ACTIVE) {
+            throw new UnauthorizedException("Only active members can moderate discussions");
+        }
 
         for (ClubRole role : allowedRoles) {
             if (membership.getRole() == role) return;

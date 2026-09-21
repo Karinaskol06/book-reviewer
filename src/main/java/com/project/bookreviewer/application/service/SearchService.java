@@ -9,7 +9,7 @@ import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.BookFilterCriteria;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.infrastructure.elasticsearch.document.BookDocument;
-import com.project.bookreviewer.infrastructure.elasticsearch.document.ReviewDocument;
+import com.project.bookreviewer.shared.util.NormalizationUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,7 +21,6 @@ import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -71,10 +70,11 @@ public class SearchService {
 
     private Page<BookResponse> fallbackSearch(String query, Pageable pageable) {
         List<Book> books = bookRepository.search(query, pageable.getPageNumber(), pageable.getPageSize());
+        long total = bookRepository.countSearch(query);
         return new PageImpl<>(
                 books.stream().map(bookMapper::toResponse).collect(Collectors.toList()),
                 pageable,
-                books.size()
+                total
         );
     }
 
@@ -87,24 +87,33 @@ public class SearchService {
             return page.map(bookMapper::toResponse);
         }
 
-        // Authoritative cached average lives in PostgreSQL; ES can lag after reviews, so minRating must use JPA.
-        if (criteria.getMinRating() != null && criteria.getMinRating() > 0) {
-            Page<Book> books = bookRepository.filterBooks(criteria, pageable);
-            return books.map(bookMapper::toResponse);
-        }
-
         try {
             BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
 
-            // Genre filter (converts the set to a list of FieldValue objects required by Elasticsearch)
+            // Genre filter — expand aliases that share genreKey (Sci-Fi ≡ Sci Fi)
             if (criteria.getGenres() != null && !criteria.getGenres().isEmpty()) {
+                Set<String> expandedGenres = NormalizationUtils.expandMatchingGenres(
+                        criteria.getGenres(),
+                        bookRepository.findAllGenres()
+                );
+                if (expandedGenres.isEmpty()) {
+                    return Page.empty(pageable);
+                }
                 boolBuilder.filter(f -> f.terms(t -> t
                         .field("genres")
                         .terms(terms -> terms.value(
-                                criteria.getGenres().stream()
+                                expandedGenres.stream()
                                         .map(FieldValue::of)
                                         .collect(Collectors.toList())
                         ))
+                ));
+            }
+
+            // minRating on ES (may lag behind Postgres cached average; JPA fallback remains authoritative)
+            if (criteria.getMinRating() != null && criteria.getMinRating() > 0) {
+                boolBuilder.filter(f -> f.range(r -> r
+                        .field("averageRating")
+                        .gte(JsonData.of(criteria.getMinRating().doubleValue()))
                 ));
             }
 
@@ -185,113 +194,8 @@ public class SearchService {
         }
     }
 
-    public List<BookResponse> getRecommendations(Long userId, int limit) {
-        try {
-            // Find user's highly rated books from ES reviews index
-            NativeQuery userRatingsQuery = NativeQuery.builder()
-                    .withQuery(q -> q.bool(b -> b
-                            .must(m -> m.term(t -> t.field("userId").value(userId)))
-                            .must(m -> m.range(r -> r.field("rating").gte(JsonData.of(4))))
-                    ))
-                    .withMaxResults(10)
-                    .build();
-            SearchHits<ReviewDocument> userReviews = elasticsearchOperations.search(userRatingsQuery, ReviewDocument.class);
-
-            if (userReviews.isEmpty()) return List.of();
-
-            // Collect book IDs the user already rated highly
-            Set<Long> likedBookIds = userReviews.stream()
-                    .map(hit -> hit.getContent().getBookId())
-                    .collect(Collectors.toSet());
-
-            // Fetch the actual BookDocuments for those liked books by book ids
-            List<BookDocument> likedBooks = new ArrayList<>();
-            for (Long bookId : likedBookIds) {
-                BookDocument doc = elasticsearchOperations.get(bookId.toString(), BookDocument.class);
-                if (doc != null) likedBooks.add(doc);
-            }
-
-            // Criteria for finding similar books
-            // Set of unique genre tags from liked books
-            Set<String> likedGenres = likedBooks.stream()
-                    .flatMap(book -> book.getGenres().stream())
-                    .collect(Collectors.toSet());
-            // Set of unique pacing values
-            Set<String> likedPacing = likedBooks.stream()
-                    .map(BookDocument::getDominantPacing)
-                    .filter(p -> p != null)
-                    .collect(Collectors.toSet());
-
-            // Build recommendation query: books with similar genres/pacing, excluding already read
-            BoolQuery.Builder recBool = new BoolQuery.Builder();
-            //should = OR; book should match at least one of the liked genres or pacing types
-            if (likedGenres.isEmpty() && likedPacing.isEmpty()) {
-                return List.of();
-            }
-
-            if (!likedGenres.isEmpty()) {
-                recBool.should(s -> s.terms(t -> t
-                        .field("genres")
-                        .terms(terms -> terms.value(
-                                likedGenres.stream().map(FieldValue::of).collect(Collectors.toList())
-                        ))
-                ));
-            }
-            if (!likedPacing.isEmpty()) {
-                recBool.should(s -> s.terms(t -> t
-                        .field("dominantPacing")
-                        .terms(terms -> terms.value(
-                                likedPacing.stream().map(FieldValue::of).collect(Collectors.toList())
-                        ))
-                ));
-            }
-            //excludes the books already in liked set
-            recBool.mustNot(m -> m.terms(t -> t
-                    .field("id")
-                    .terms(terms -> terms.value(
-                            likedBookIds.stream().map(id -> FieldValue.of(id)).collect(Collectors.toList())
-                    ))
-            ));
-
-            // Wraps recommendations query into native
-            NativeQuery recQuery = NativeQuery.builder()
-                    .withQuery(q -> q.bool(recBool.build()))
-                    .withMaxResults(limit)
-                    .build();
-
-            // Query execution
-            SearchHits<BookDocument> recHits = elasticsearchOperations.search(recQuery, BookDocument.class);
-
-            // Mapping search hits to book responses with explanation
-            return recHits.stream()
-                    .map(SearchHit::getContent)
-                    .map(doc -> {
-                        //for each hit info from postgres is queried
-                        BookResponse resp = bookMapper.toResponse(
-                                bookRepository.findById(doc.getId()).orElse(null));
-                        if (resp != null) {
-                            // Build explanation
-                            List<String> reasons = new ArrayList<>();
-                            if (likedGenres.stream().anyMatch(g -> doc.getGenres().contains(g))) {
-                                reasons.add("Similar genres");
-                            }
-                            if (doc.getDominantPacing() != null && likedPacing.contains(doc.getDominantPacing())) {
-                                reasons.add("Similar pacing");
-                            }
-                            resp.setRecommendationReason(String.join(" and ", reasons));
-                        }
-                        return resp;
-                    })
-                    .filter(resp -> resp != null)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("Recommendations failed", e);
-            return List.of(); // or fallback to DB
-        }
-    }
-
     public List<String> getAllGenres() {
-        return bookRepository.findAllGenres();
+        return NormalizationUtils.dedupeGenreLabels(bookRepository.findAllGenres());
     }
 
     /* helper methods */
@@ -313,7 +217,7 @@ public class SearchService {
                 && (criteria.getPacing() == null || criteria.getPacing().isEmpty())
                 && criteria.getYearFrom() == null
                 && criteria.getYearTo() == null
-                && criteria.getContentSafe() == null
+                && !Boolean.TRUE.equals(criteria.getContentSafe())
                 && (criteria.getSearchQuery() == null || criteria.getSearchQuery().isBlank());
     }
 }

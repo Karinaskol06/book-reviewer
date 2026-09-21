@@ -16,4 +16,5 @@ public class UpdateClubRequest {
     private Boolean isPrivate;
     private String coverImageUrl;
     private LocalDateTime nextMeetingAt;
+    private String meetingLink;
 }

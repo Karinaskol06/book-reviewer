@@ -1,7 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap');
 
 :root {
-  --bg-base: #fbecd7;
+  --bg-base: #fdf4e6;
   --dark-1: #022859;
   --dark-2: #2f4e50;
   --bright-1: #f09c20;
@@ -21,7 +21,7 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
-  background: radial-gradient(circle at top left, #fff7e9 0, #fbecd7 45%, #f7e4cb 100%);
+  background: radial-gradient(circle at top left, #fff9ef 0, #fdf4e6 45%, #f8ead4 100%);
   color: var(--dark-1);
 }
 
@@ -50,11 +50,11 @@ button:hover:not(:disabled) {
 }
 
 ::-webkit-scrollbar-track {
-  background: #fbecd7;
+  background: #fdf4e6;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #749283;
   border-radius: 999px;
-  border: 2px solid #fbecd7;
+  border: 2px solid #fdf4e6;
 }

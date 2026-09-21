@@ -24,9 +24,4 @@ public class HomeController {
                         .stream().map(bookMapper::toResponse).collect(Collectors.toList())
         );
     }
-
-    @GetMapping("/featured")
-    public ResponseEntity<BookResponse> getFeatured() {
-        return ResponseEntity.ok(bookMapper.toResponse(bookService.getFeaturedBook()));
-    }
 }

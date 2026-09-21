@@ -1,5 +1,6 @@
 package com.project.bookreviewer.application.dto.request;
 
+import com.project.bookreviewer.domain.model.Pacing;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import java.util.Set;
@@ -16,4 +17,5 @@ public class CreateBookRequest {
     private String coverUrl;
     private Integer publicationYear;
     private Set<String> genres;
+    private Pacing pacing;
 }

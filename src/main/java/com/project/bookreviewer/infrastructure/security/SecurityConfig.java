@@ -1,6 +1,7 @@
 package com.project.bookreviewer.infrastructure.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -31,6 +32,9 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
+    @Value("${application.security.bcrypt-strength:12}")
+    private int bcryptStrength;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -40,9 +44,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/home/**", "/api/books/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/books/covers").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/books").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/books/*").authenticated()
+                        .requestMatchers("/api/home/**", "/api/books/**", "/api/genres").permitAll()
                         .requestMatchers("/uploads-book-reviewer/**").permitAll()
-                        .requestMatchers("/avatars/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -62,7 +68,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(bcryptStrength);
     }
 
     @Bean
@@ -76,7 +82,9 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "http://127.0.0.1:5173"
+                "http://127.0.0.1:5173",
+                "http://localhost:3080",
+                "http://127.0.0.1:3080"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

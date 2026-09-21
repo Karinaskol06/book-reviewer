@@ -9,31 +9,60 @@ import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.port.inbound.BookUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
+import com.project.bookreviewer.infrastructure.security.SecurityUtils;
+import com.project.bookreviewer.infrastructure.storage.StorageProperties;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class BookService implements BookUseCase {
+    private static final String COVER_FOLDER = "covers";
+
     private final BookRepositoryPort bookRepository;
     private final ReviewRepositoryPort reviewRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ObjectStoragePort objectStoragePort;
+    private final StorageProperties storageProperties;
+    private final SecurityUtils securityUtils;
 
     @Override
     @Transactional
     public Book createBook(Book book, Long actorUserId) {
         book.normalizeFields();
+        book = Book.builder()
+                .id(book.getId())
+                .title(book.getTitle())
+                .author(book.getAuthor())
+                .normalizedTitle(book.getNormalizedTitle())
+                .normalizedAuthor(book.getNormalizedAuthor())
+                .description(book.getDescription())
+                .coverUrl(normalizeCoverForStorage(book.getCoverUrl()))
+                .publicationYear(book.getPublicationYear())
+                .genres(normalizeGenres(book.getGenres()))
+                .createdAt(book.getCreatedAt())
+                .averageRating(book.getAverageRating())
+                .ratingCount(book.getRatingCount())
+                .totalReviews(book.getTotalReviews())
+                .build();
+
         // Application-level duplicate check
-        Optional<Book> existing = bookRepository.findByNormalizedTitleAndAuthor(
+        Optional<Book> existing = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
                 book.getNormalizedTitle(),
-                NormalizationUtils.normalize(book.getAuthor())
+                book.getNormalizedAuthor()
         );
         if (existing.isPresent()) {
             throw new DuplicateBookException("Book already exists", existing.get().getId());
@@ -45,15 +74,124 @@ public class BookService implements BookUseCase {
             return saved;
         } catch (DataIntegrityViolationException e) {
             // DB-level duplicate prevention (concurrent requests)
-            Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndAuthor(
+            Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
                     book.getNormalizedTitle(),
-                    NormalizationUtils.normalize(book.getAuthor())
+                    book.getNormalizedAuthor()
             );
             if (concurrentExisting.isPresent()) {
                 throw new DuplicateBookException("Book already exists", concurrentExisting.get().getId());
             }
             throw e;
         }
+    }
+
+    @Override
+    @Transactional
+    public Book updateBook(Long id, Book updates) {
+        Book existing = getBook(id);
+
+        updates.normalizeFields();
+        Optional<Book> duplicate = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
+                updates.getNormalizedTitle(),
+                updates.getNormalizedAuthor()
+        );
+        if (duplicate.isPresent() && !duplicate.get().getId().equals(id)) {
+            throw new DuplicateBookException("Book already exists", duplicate.get().getId());
+        }
+
+        Book toSave = Book.builder()
+                .id(existing.getId())
+                .title(updates.getTitle())
+                .author(updates.getAuthor())
+                .normalizedTitle(updates.getNormalizedTitle())
+                .normalizedAuthor(updates.getNormalizedAuthor())
+                .description(updates.getDescription())
+                .coverUrl(normalizeCoverForStorage(updates.getCoverUrl()))
+                .publicationYear(updates.getPublicationYear())
+                .genres(normalizeGenres(updates.getGenres()))
+                .createdAt(existing.getCreatedAt())
+                .averageRating(existing.getAverageRating())
+                .ratingCount(existing.getRatingCount())
+                .totalReviews(existing.getTotalReviews())
+                .build();
+
+        try {
+            Book saved = bookRepository.save(toSave);
+            applicationEventPublisher.publishEvent(new BookUpdatedEvent(this, saved));
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
+                    updates.getNormalizedTitle(),
+                    updates.getNormalizedAuthor()
+            );
+            if (concurrentExisting.isPresent() && !concurrentExisting.get().getId().equals(id)) {
+                throw new DuplicateBookException("Book already exists", concurrentExisting.get().getId());
+            }
+            throw e;
+        }
+    }
+
+    @Transactional
+    public String storeCover(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Cover file is empty");
+        }
+        try {
+            return objectStoragePort.store(
+                    COVER_FOLDER,
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getInputStream(),
+                    file.getSize()
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read cover upload", e);
+        }
+    }
+
+    public String toPublicCoverUrl(String storedReference) {
+        if (storedReference == null || storedReference.isEmpty()) {
+            return null;
+        }
+        String value = storedReference.trim();
+        if (value.startsWith("data:")) {
+            return null;
+        }
+        // Check if it is not already a URL
+        if (value.startsWith("http:") || value.startsWith("https:")) {
+            return value;
+        }
+        if (value.startsWith("/uploads-book-reviewer/")) {
+            return value;
+        }
+
+        return objectStoragePort.toPublicUrl(storedReference);
+    }
+
+    String normalizeCoverForStorage(String coverUrl) {
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            return null;
+        }
+        String value = coverUrl.trim();
+        if (value.startsWith("data:")) {
+            throw new IllegalArgumentException("Upload a new file instead");
+        }
+
+        if (value.startsWith("http:") || value.startsWith("https:")) {
+            return value;
+        }
+        String prefix = storageProperties.getLocal().getPublicPrefix();
+        if (prefix != null && !prefix.isBlank()) {
+            String normalizedPrefix = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+            if (!normalizedPrefix.startsWith("/")) {
+                normalizedPrefix = "/" + normalizedPrefix;
+            }
+            if (value.startsWith(normalizedPrefix + "/")) {
+                return value.substring(normalizedPrefix.length() + 1);
+            }
+        }
+        
+        return value;
     }
 
     @Override
@@ -91,6 +229,7 @@ public class BookService implements BookUseCase {
                 .title(book.getTitle())
                 .author(book.getAuthor())
                 .normalizedTitle(book.getNormalizedTitle())
+                .normalizedAuthor(book.getNormalizedAuthor())
                 .description(book.getDescription())
                 .coverUrl(book.getCoverUrl())
                 .publicationYear(book.getPublicationYear())
@@ -108,21 +247,24 @@ public class BookService implements BookUseCase {
     // Home page specific
     @Transactional(readOnly = true)
     public List<Book> getTrendingBooks(int limit) {
-        return bookRepository.findTrending(limit);
-    }
-
-    @Transactional(readOnly = true)
-    public Book getFeaturedBook() {
-        return bookRepository.findFeatured()
-                .orElseThrow(() -> new ResourceNotFoundException("No featured book set"));
+        Long excludeUserId = securityUtils.getCurrentUserIdOrNull();
+        return bookRepository.findTrending(limit, excludeUserId);
     }
 
     // Duplicate check for real-time validation
     public DuplicateCheckResponse checkDuplicate(String title, String author) {
-        String normalizedTitle = NormalizationUtils.normalize(title);
+        return checkDuplicate(title, author, null);
+    }
 
-        Optional<Book> existing = bookRepository.findByNormalizedTitleAndAuthor(normalizedTitle, author.trim());
-        if (existing.isPresent()) {
+    public DuplicateCheckResponse checkDuplicate(String title, String author, Long excludeBookId) {
+        String normalizedTitle = NormalizationUtils.normalize(title);
+        String normalizedAuthor = NormalizationUtils.normalize(author);
+
+        Optional<Book> existing = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
+                normalizedTitle,
+                normalizedAuthor
+        );
+        if (existing.isPresent() && (excludeBookId == null || !existing.get().getId().equals(excludeBookId))) {
             Book book = existing.get();
             return DuplicateCheckResponse.builder()
                     .exists(true)
@@ -168,9 +310,29 @@ public class BookService implements BookUseCase {
                 .id(book.getId())
                 .title(book.getTitle())
                 .author(book.getAuthor())
-                .coverUrl(book.getCoverUrl())
+                .coverUrl(toPublicCoverUrl(book.getCoverUrl()))
                 .description(book.getDescription())
                 .totalReviews(book.getTotalReviews())
                 .build();
+    }
+
+    Set<String> normalizeGenres(Set<String> genres) {
+        if (genres == null || genres.isEmpty()) {
+            return genres;
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        Set<String> seenKeys = new LinkedHashSet<>();
+        for (String genre : genres) {
+            String label = NormalizationUtils.toGenreLabel(genre);
+            if (label == null) {
+                continue;
+            }
+            String key = NormalizationUtils.genreKey(label);
+            if (key == null || key.isBlank() || !seenKeys.add(key)) {
+                continue;
+            }
+            normalized.add(label);
+        }
+        return normalized;
     }
 }

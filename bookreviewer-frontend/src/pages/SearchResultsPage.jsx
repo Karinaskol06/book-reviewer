@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth.js'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import AppChrome from '../components/layout/AppChrome.jsx'
+import { useDebounce } from '../hooks/useDebounce.js'
+import { resolveMediaUrl } from '../utils/media.js'
 import { filterBooks, getGenres } from '../services/homeService.js'
 import './SearchResultsPage.css'
 
@@ -10,7 +12,6 @@ const renderStars = (rating = 0) => {
 }
 
 const SearchResultsPage = () => {
-  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const paramsString = searchParams.toString()
@@ -27,22 +28,10 @@ const SearchResultsPage = () => {
   const [allGenres, setAllGenres] = useState([])
   const [booksPage, setBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, number: 0 })
   const [loading, setLoading] = useState(false)
-  const [headerSearch, setHeaderSearch] = useState(query)
-
-  useEffect(() => {
-    const value = headerSearch.trim()
-    if (value === query) return
-
-    const timer = setTimeout(() => {
-      const params = new URLSearchParams(searchParams)
-      params.delete('query')
-      if (value) params.set('query', value)
-      params.set('page', '0')
-      setSearchParams(params)
-    }, 350)
-
-    return () => clearTimeout(timer)
-  }, [headerSearch, query, searchParams, setSearchParams])
+  const [yearFromDraft, setYearFromDraft] = useState(yearFrom)
+  const [yearToDraft, setYearToDraft] = useState(yearTo)
+  const debouncedYearFrom = useDebounce(yearFromDraft, 400)
+  const debouncedYearTo = useDebounce(yearToDraft, 400)
 
   useEffect(() => {
     const loadGenres = async () => {
@@ -63,9 +52,9 @@ const SearchResultsPage = () => {
           pacing: pacing || undefined,
           yearFrom: yearFrom ? Number(yearFrom) : undefined,
           yearTo: yearTo ? Number(yearTo) : undefined,
-          contentSafe,
+          contentSafe: contentSafe ? true : undefined,
           page,
-          size: 6,
+          size: 15,
         })
         setBooksPage(result)
       } finally {
@@ -89,41 +78,18 @@ const SearchResultsPage = () => {
     setSearchParams(params)
   }
 
+  useEffect(() => {
+    if (debouncedYearFrom === yearFrom && debouncedYearTo === yearTo) return
+    updateFilters({ yearFrom: debouncedYearFrom, yearTo: debouncedYearTo })
+  }, [debouncedYearFrom, debouncedYearTo])
+
   const resultsCountText = useMemo(
     () => `Showing ${booksPage.totalElements ?? 0} curated titles${query ? ` for "${query}"` : ''}`,
     [booksPage.totalElements, query],
   )
 
   return (
-    <main className="dashboard">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input
-          className="home-nav__search"
-          type="search"
-          placeholder="Search the archive..."
-          value={headerSearch}
-          onChange={(event) => setHeaderSearch(event.target.value)}
-        />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>
-            Logout
-          </button>
-        </div>
-      </header>
-
+    <AppChrome>
       <div className="home-content">
         <section className="search-layout">
           <aside className="filters-panel">
@@ -170,14 +136,14 @@ const SearchResultsPage = () => {
               <input
                 type="number"
                 placeholder="From"
-                value={yearFrom}
-                onChange={(e) => updateFilters({ yearFrom: e.target.value })}
+                value={yearFromDraft}
+                onChange={(e) => setYearFromDraft(e.target.value)}
               />
               <input
                 type="number"
                 placeholder="To"
-                value={yearTo}
-                onChange={(e) => updateFilters({ yearTo: e.target.value })}
+                value={yearToDraft}
+                onChange={(e) => setYearToDraft(e.target.value)}
               />
             </div>
 
@@ -210,9 +176,9 @@ const SearchResultsPage = () => {
               {booksPage.content.map((book) => (
                 <article key={book.id} className="result-card" onClick={() => navigate(`/books/${book.id}`)}>
                   <div className="result-card__cover">
-                    <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                    <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                   </div>
-                  <div>
+                  <div className="result-card__body">
                     <h4>{book.title}</h4>
                     <p className="author">
                       {book.author}
@@ -268,17 +234,7 @@ const SearchResultsPage = () => {
           </section>
         </section>
       </div>
-
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-    </main>
+    </AppChrome>
   )
 }
 

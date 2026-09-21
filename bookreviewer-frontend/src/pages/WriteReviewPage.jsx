@@ -1,7 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
-import { createReview, getBookDetail, setBookStatus } from '../services/bookService.js'
+import {
+  createReview,
+  getBookDetail,
+  getBookStatus,
+  getReview,
+  setBookStatus,
+  updateReview,
+} from '../services/bookService.js'
+import { resolveMediaUrl } from '../utils/media.js'
 import './WriteReviewPage.css'
 
 const moodOptions = [
@@ -30,13 +39,23 @@ const warningOptions = [
   'Eating Disorders',
 ]
 
+const READING_STATUS_OPTIONS = [
+  { value: 'WANT_TO_READ', label: 'Want to Read' },
+  { value: 'READING', label: 'Reading' },
+  { value: 'READ', label: 'Finished Reading' },
+  { value: 'ABANDONED', label: 'Abandoned' },
+]
+
 const WriteReviewPage = () => {
-  const { id } = useParams()
+  const { id, reviewId } = useParams()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
+  const isEditMode = Boolean(reviewId)
   const [book, setBook] = useState(null)
-  const [headerSearch, setHeaderSearch] = useState('')
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [statusOpen, setStatusOpen] = useState(false)
+  const statusMenuRef = useRef(null)
   const [form, setForm] = useState({
     rating: 4,
     readingStatus: 'READ',
@@ -53,20 +72,79 @@ const WriteReviewPage = () => {
 
   useEffect(() => {
     const load = async () => {
-      const data = await getBookDetail(id)
-      setBook(data)
+      setLoadError('')
+      try {
+        const data = await getBookDetail(id)
+        if (!isEditMode && data?.userHasReviewed) {
+          navigate(`/books/${id}`, { replace: true })
+          return
+        }
+
+        if (isEditMode) {
+          const review = await getReview(reviewId, { includeSpoilers: true })
+          if (Number(review.bookId) !== Number(id)) {
+            navigate(`/books/${id}`, { replace: true })
+            return
+          }
+          if (user?.userId != null && Number(review.user?.id) !== Number(user.userId)) {
+            navigate(`/books/${id}`, { replace: true })
+            return
+          }
+
+          let readingStatus = 'READ'
+          try {
+            const status = await getBookStatus(id)
+            if (status?.status) readingStatus = status.status
+          } catch {
+            // keep default
+          }
+
+          setForm({
+            rating: review.rating || 4,
+            readingStatus,
+            verdict: review.verdict || '',
+            pacing: review.pacing || 'MEDIUM',
+            mood: Array.isArray(review.mood) && review.mood.length
+              ? review.mood
+              : (Array.isArray(review.tags) ? review.tags : []),
+            contentWarnings: Array.isArray(review.contentWarnings) ? review.contentWarnings : [],
+            detailedReview: review.detailedReview || '',
+            whoIsItFor: review.whoIsItFor || '',
+            whoIsItNotFor: review.whoIsItNotFor || '',
+            spoilerContent: review.spoilerContent || '',
+            hasSpoiler: Boolean(review.hasSpoiler),
+          })
+        }
+
+        setBook(data)
+      } catch {
+        setLoadError('Could not load this review.')
+      }
     }
     load()
-  }, [id])
+  }, [id, isEditMode, navigate, reviewId, user?.userId])
 
   useEffect(() => {
-    const q = headerSearch.trim()
-    if (!q) return
-    const timer = setTimeout(() => navigate(`/search?query=${encodeURIComponent(q)}&page=0`), 350)
-    return () => clearTimeout(timer)
-  }, [headerSearch, navigate])
+    if (!statusOpen) return undefined
+    const onPointerDown = (event) => {
+      if (!statusMenuRef.current?.contains(event.target)) {
+        setStatusOpen(false)
+      }
+    }
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setStatusOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [statusOpen])
 
-  const stars = useMemo(() => '★'.repeat(form.rating) + '☆'.repeat(5 - form.rating), [form.rating])
+  const readingStatusLabel =
+    READING_STATUS_OPTIONS.find((option) => option.value === form.readingStatus)?.label
+    || 'Finished Reading'
 
   const toggleInArray = (key, value) => {
     setForm((prev) => ({
@@ -80,7 +158,7 @@ const WriteReviewPage = () => {
     setSaving(true)
     try {
       await setBookStatus(id, form.readingStatus)
-      await createReview(id, {
+      const payload = {
         rating: form.rating,
         verdict: form.verdict,
         detailedReview: form.detailedReview || undefined,
@@ -92,88 +170,142 @@ const WriteReviewPage = () => {
         hasSpoiler: form.hasSpoiler,
         spoilerContent: form.hasSpoiler ? form.spoilerContent : undefined,
         tags: form.mood,
-      })
-      navigate(`/books/${id}`)
+      }
+      if (isEditMode) {
+        await updateReview(reviewId, payload)
+      } else {
+        await createReview(id, payload)
+      }
+      navigate(`/books/${id}${isEditMode ? `#review-${reviewId}` : ''}`)
     } finally {
       setSaving(false)
     }
   }
 
+  if (loadError) {
+    return (
+      <AppChrome>
+        <p className="detail-loading">{loadError}</p>
+      </AppChrome>
+    )
+  }
+
   if (!book) {
-    return <main className="dashboard"><p className="detail-loading">Loading review form...</p></main>
+    return (
+      <AppChrome>
+        <p className="detail-loading">Loading review form...</p>
+      </AppChrome>
+    )
   }
 
   return (
-    <main className="dashboard">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input className="home-nav__search" placeholder="Search the archive..." value={headerSearch} onChange={(e) => setHeaderSearch(e.target.value)} />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>Logout</button>
-        </div>
-      </header>
-
+    <AppChrome>
       <div className="home-content write-review-page">
-        <form className="review-form-shell" onSubmit={submit}>
+        <form className="review-form-shell motion-surface" onSubmit={submit}>
           <section className="review-book-head">
-            <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
-            <div>
-              <p className="kicker">DIGITAL ARCHIVIST REVIEW</p>
+            <div className="review-book-head__cover">
+              <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
+            </div>
+            <div className="review-book-head__copy">
+              <p className="kicker">{isEditMode ? 'Edit your review' : 'Write a review'}</p>
               <h2>{book.title}</h2>
               <p className="author">by {book.author}</p>
               <div className="head-row">
-                <label>
-                  Reading Status
-                  <select value={form.readingStatus} onChange={(e) => setForm((p) => ({ ...p, readingStatus: e.target.value }))}>
-                    <option value="WANT_TO_READ">Want to Read</option>
-                    <option value="READING">Reading</option>
-                    <option value="READ">Finished Reading</option>
-                    <option value="ABANDONED">Abandoned</option>
-                  </select>
-                </label>
-                <label>
-                  The Scholar&apos;s Rating
-                  <div className="stars-row">
-                    <input type="range" min="1" max="5" value={form.rating} onChange={(e) => setForm((p) => ({ ...p, rating: Number(e.target.value) }))} />
-                    <span>{stars}</span>
+                <div className="status-field" ref={statusMenuRef}>
+                  <span className="status-field__label" id="reading-status-label">
+                    Reading status
+                  </span>
+                  <button
+                    type="button"
+                    className={`status-select${statusOpen ? ' is-open' : ''}`}
+                    aria-haspopup="listbox"
+                    aria-expanded={statusOpen}
+                    aria-labelledby="reading-status-label"
+                    onClick={() => setStatusOpen((open) => !open)}
+                  >
+                    <span>{readingStatusLabel}</span>
+                    <span className="status-select__chevron" aria-hidden="true" />
+                  </button>
+                  {statusOpen && (
+                    <ul className="status-menu" role="listbox" aria-labelledby="reading-status-label">
+                      {READING_STATUS_OPTIONS.map((option) => (
+                        <li key={option.value} role="presentation">
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={form.readingStatus === option.value}
+                            className={`status-menu__option${form.readingStatus === option.value ? ' is-selected' : ''}`}
+                            onClick={() => {
+                              setForm((prev) => ({ ...prev, readingStatus: option.value }))
+                              setStatusOpen(false)
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="rating-field">
+                  <span className="rating-field__label">Reader&apos;s rating</span>
+                  <div className="stars-row" role="group" aria-label="Reader's rating">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`star-btn${form.rating >= value ? ' is-on' : ''}`}
+                        aria-label={`${value} star${value > 1 ? 's' : ''}`}
+                        aria-pressed={form.rating === value}
+                        onClick={() => setForm((p) => ({ ...p, rating: value }))}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    <span className="stars-row__value">{form.rating} / 5</span>
                   </div>
-                </label>
+                </div>
               </div>
             </div>
           </section>
 
           <section className="section-block">
-            <h3>Decision-Focused Sections</h3>
+            <p className="section-kicker">For other readers</p>
+            <h3>Who should pick this up?</h3>
             <div className="two-cols">
               <label>
                 Who is this book for?
-                <textarea value={form.whoIsItFor} onChange={(e) => setForm((p) => ({ ...p, whoIsItFor: e.target.value }))} required />
+                <textarea
+                  value={form.whoIsItFor}
+                  onChange={(e) => setForm((p) => ({ ...p, whoIsItFor: e.target.value }))}
+                  placeholder="Readers who love slow burns, rich worlds, quiet endings..."
+                  required
+                />
               </label>
               <label>
-                Who is this book NOT for?
-                <textarea value={form.whoIsItNotFor} onChange={(e) => setForm((p) => ({ ...p, whoIsItNotFor: e.target.value }))} required />
+                Who is this book not for?
+                <textarea
+                  value={form.whoIsItNotFor}
+                  onChange={(e) => setForm((p) => ({ ...p, whoIsItNotFor: e.target.value }))}
+                  placeholder="Anyone looking for a quick, light beach read..."
+                  required
+                />
               </label>
             </div>
             <label>
-              Short Verdict
-              <input value={form.verdict} onChange={(e) => setForm((p) => ({ ...p, verdict: e.target.value }))} required />
+              Short verdict
+              <input
+                value={form.verdict}
+                onChange={(e) => setForm((p) => ({ ...p, verdict: e.target.value }))}
+                placeholder="One or two sentences that capture the book"
+                required
+              />
             </label>
           </section>
 
           <section className="section-block">
-            <h3>Detailed Breakdown</h3>
+            <p className="section-kicker">Feel of the book</p>
+            <h3>Pacing, mood &amp; warnings</h3>
             <label>
               Pacing
               <div className="segmented">
@@ -191,10 +323,15 @@ const WriteReviewPage = () => {
             </label>
 
             <label>
-              Mood & Tone
+              Mood &amp; tone
               <div className="chips">
                 {moodOptions.map((mood) => (
-                  <button key={mood} type="button" className={form.mood.includes(mood) ? 'active' : ''} onClick={() => toggleInArray('mood', mood)}>
+                  <button
+                    key={mood}
+                    type="button"
+                    className={form.mood.includes(mood) ? 'active' : ''}
+                    onClick={() => toggleInArray('mood', mood)}
+                  >
                     {mood}
                   </button>
                 ))}
@@ -202,12 +339,17 @@ const WriteReviewPage = () => {
             </label>
 
             <div className="warnings">
-              <p>Content Warnings</p>
+              <p>Content warnings</p>
               <div>
                 {warningOptions.map((warning) => (
-                  <label key={warning} className="check">
-                    <input type="checkbox" checked={form.contentWarnings.includes(warning)} onChange={() => toggleInArray('contentWarnings', warning)} />
-                    {warning}
+                  <label key={warning} className="check warning-check">
+                    <input
+                      type="checkbox"
+                      checked={form.contentWarnings.includes(warning)}
+                      onChange={() => toggleInArray('contentWarnings', warning)}
+                    />
+                    <span className="warning-check__box" aria-hidden="true" />
+                    <span className="warning-check__text">{warning}</span>
                   </label>
                 ))}
               </div>
@@ -215,21 +357,31 @@ const WriteReviewPage = () => {
           </section>
 
           <section className="section-block">
-            <h3>The Long Form</h3>
+            <p className="section-kicker">Optional depth</p>
+            <h3>The longer note</h3>
             <label>
-              Detailed Review (Optional)
-              <textarea className="long-form" value={form.detailedReview} onChange={(e) => setForm((p) => ({ ...p, detailedReview: e.target.value }))} />
+              Detailed review
+              <textarea
+                className="long-form"
+                value={form.detailedReview}
+                onChange={(e) => setForm((p) => ({ ...p, detailedReview: e.target.value }))}
+                placeholder="Share scenes, themes, or anything that stayed with you..."
+              />
             </label>
           </section>
 
-          <section className="section-block">
-            <label className="check">
-              <input type="checkbox" checked={form.hasSpoiler} onChange={(e) => setForm((p) => ({ ...p, hasSpoiler: e.target.checked }))} />
-              Spoiler Section
+          <section className="section-block spoiler-block">
+            <label className="check spoiler-toggle">
+              <input
+                type="checkbox"
+                checked={form.hasSpoiler}
+                onChange={(e) => setForm((p) => ({ ...p, hasSpoiler: e.target.checked }))}
+              />
+              Include a spoiler section
             </label>
             <textarea
               className="spoiler"
-              placeholder="Hide spoilers here. These will be hidden by default for other readers..."
+              placeholder="Spoilers stay hidden by default for other readers..."
               value={form.spoilerContent}
               disabled={!form.hasSpoiler}
               onChange={(e) => setForm((p) => ({ ...p, spoilerContent: e.target.value }))}
@@ -237,23 +389,21 @@ const WriteReviewPage = () => {
           </section>
 
           <div className="review-actions">
-            <p>By submitting, your review will be cataloged and shared with the scholarly community.</p>
-            <button type="button" className="ghost" onClick={() => navigate(-1)}>Save Draft</button>
-            <button type="submit" disabled={saving}>{saving ? 'Submitting...' : 'Submit Review'}</button>
+            <p>
+              {isEditMode
+                ? 'Saving will update your review on this book’s page.'
+                : 'Your review will appear on this book’s page for other readers.'}
+            </p>
+            <button type="button" className="ghost" onClick={() => navigate(-1)}>
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}>
+              {saving ? (isEditMode ? 'Saving…' : 'Submitting…') : (isEditMode ? 'Save changes' : 'Submit review')}
+            </button>
           </div>
         </form>
       </div>
-
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-    </main>
+    </AppChrome>
   )
 }
 

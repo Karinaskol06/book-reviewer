@@ -1,19 +1,21 @@
 package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.request.UpdateAboutMeRequest;
+import com.project.bookreviewer.application.dto.request.UpdateProfileRequest;
 import com.project.bookreviewer.application.dto.response.AvatarUploadResponse;
 import com.project.bookreviewer.application.dto.response.ReviewResponse;
+import com.project.bookreviewer.application.dto.response.TasteProfileResponse;
 import com.project.bookreviewer.application.dto.response.UserProfileResponse;
 import com.project.bookreviewer.application.mapper.ReviewMapper;
 import com.project.bookreviewer.application.mapper.UserMapper;
 import com.project.bookreviewer.application.service.ReviewService;
+import com.project.bookreviewer.application.service.TasteProfileService;
 import com.project.bookreviewer.application.service.UserBookStatusService;
 import com.project.bookreviewer.application.service.UserService;
 import com.project.bookreviewer.domain.model.ReadingStatus;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
-import com.project.bookreviewer.infrastructure.storage.FileStorageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,9 +31,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class UserProfileController {
     private final UserService userService;
-    private final FileStorageService fileStorageService;
     private final UserBookStatusService  userBookStatusService;
     private final ReviewService reviewService;
+    private final TasteProfileService tasteProfileService;
     private final SecurityUtils securityUtils;
     private final ReviewMapper reviewMapper;
     private final UserMapper userMapper;
@@ -96,24 +98,24 @@ public class UserProfileController {
         return ResponseEntity.ok(reviews.map(review -> reviewMapper.toResponse(review, includeSpoilers)));
     }
 
+    @GetMapping("/{userId}/taste-profile")
+    public ResponseEntity<TasteProfileResponse> getTasteProfile(@PathVariable Long userId) {
+        userService.getUserById(userId);
+        return ResponseEntity.ok(tasteProfileService.getTasteProfile(userId));
+    }
+
+    @GetMapping("/me/taste-profile")
+    public ResponseEntity<TasteProfileResponse> getMyTasteProfile() {
+        Long userId = securityUtils.getCurrentUserId();
+        return ResponseEntity.ok(tasteProfileService.getTasteProfile(userId));
+    }
+
     @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AvatarUploadResponse> uploadAvatar(@RequestParam("file") MultipartFile file) {
         Long userId = securityUtils.getCurrentUserId();
-
-        // Get current user to delete old avatar
-        User user = userService.getUserById(userId);
-        if (user.getAvatarUrl() != null) {
-            fileStorageService.deleteAvatar(user.getAvatarUrl());
-        }
-
-        // Store new avatar
-        String avatarUrl = fileStorageService.storeAvatar(file);
-
-        // Update user entity
-        userService.updateAvatar(userId, avatarUrl);
-
+        String publicUrl = userService.replaceAvatar(userId, file);
         return ResponseEntity.ok(AvatarUploadResponse.builder()
-                .avatarUrl(avatarUrl)
+                .avatarUrl(publicUrl)
                 .message("Avatar uploaded successfully")
                 .build());
     }
@@ -121,11 +123,19 @@ public class UserProfileController {
     @DeleteMapping("/me/avatar")
     public ResponseEntity<Void> deleteAvatar() {
         Long userId = securityUtils.getCurrentUserId();
-        User user = userService.getUserById(userId);
-        if (user.getAvatarUrl() != null) {
-            fileStorageService.deleteAvatar(user.getAvatarUrl());
-            userService.updateAvatar(userId, null);
-        }
+        userService.removeAvatar(userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/me/profile")
+    public ResponseEntity<Void> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        Long userId = securityUtils.getCurrentUserId();
+        userService.updateProfile(
+                userId,
+                request.getDisplayName(),
+                request.getAboutMe(),
+                request.getSocialLinks()
+        );
         return ResponseEntity.noContent().build();
     }
 

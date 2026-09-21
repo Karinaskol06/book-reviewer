@@ -3,7 +3,9 @@ package com.project.bookreviewer.infrastructure.persistence.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -23,7 +25,19 @@ public class UserEntity {
     private String password;
 
     private String avatarUrl;
+
+    @Column(length = 120)
+    private String displayName;
+
+    @Column(length = 1500)
     private String aboutMe;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_social_links", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "url", length = 500)
+    @OrderColumn(name = "link_order")
+    @Builder.Default
+    private List<String> socialLinks = new ArrayList<>();
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))

@@ -2,6 +2,7 @@ package com.project.bookreviewer.domain.model;
 
 import lombok.Builder;
 import lombok.Getter;
+
 import java.time.LocalDateTime;
 
 @Getter
@@ -15,6 +16,7 @@ public class ReadingClub {
     private Boolean isPrivate;
     private String coverImageUrl;
     private LocalDateTime nextMeetingAt;
+    private String meetingLink;
     private Long createdBy;
     private LocalDateTime createdAt;
 }

@@ -7,7 +7,8 @@ import java.util.Set;
 
 @Entity
 @Table(name = "books", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"normalizedTitle", "author"})
+        @UniqueConstraint(name = "uk_books_normalized_title_author",
+                columnNames = {"normalizedTitle", "normalizedAuthor"})
 })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class BookEntity {
@@ -22,6 +23,9 @@ public class BookEntity {
 
     @Column(nullable = false)
     private String author;
+
+    @Column(nullable = false)
+    private String normalizedAuthor;
 
     @Column(columnDefinition = "TEXT")
     private String description;

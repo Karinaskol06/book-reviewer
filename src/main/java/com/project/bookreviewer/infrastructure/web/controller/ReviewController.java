@@ -28,11 +28,27 @@ public class ReviewController {
             @PathVariable Long bookId,
             @PageableDefault(size = 10) Pageable pageable,
             @RequestParam(required = false, defaultValue = "false") boolean includeSpoilers) {
+        Long currentUserId = securityUtils.getCurrentUserIdOrNull();
         Page<Review> reviews = reviewService.getReviewsByBook(bookId, pageable);
 
-        Page<ReviewResponse> responsePage = reviews.map(review ->
-                reviewMapper.toResponse(review, includeSpoilers));
+        Page<ReviewResponse> responsePage = reviews.map(review -> {
+            ReviewResponse response = reviewMapper.toResponse(review, includeSpoilers);
+            response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+            return response;
+        });
         return ResponseEntity.ok(responsePage);
+    }
+
+    @GetMapping("/reviews/{reviewId}")
+    public ResponseEntity<ReviewResponse> getReview(
+            @PathVariable Long reviewId,
+            @RequestParam(required = false, defaultValue = "false") boolean includeSpoilers) {
+        Long currentUserId = securityUtils.getCurrentUserIdOrNull();
+        Review review = reviewService.getReview(reviewId);
+        boolean showSpoilers = includeSpoilers || (currentUserId != null && currentUserId.equals(review.getUserId()));
+        ReviewResponse response = reviewMapper.toResponse(review, showSpoilers);
+        response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/books/{bookId}/reviews")
@@ -50,12 +66,22 @@ public class ReviewController {
             @PathVariable Long reviewId,
             @Valid @RequestBody CreateReviewRequest request) {
         Review review = reviewService.updateReview(reviewId, request);
-        return ResponseEntity.ok(reviewMapper.toResponse(review));
+        Long currentUserId = securityUtils.getCurrentUserIdOrNull();
+        ReviewResponse response = reviewMapper.toResponse(review, true);
+        response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/reviews/{reviewId}")
     public ResponseEntity<Void> deleteReview(@PathVariable Long reviewId) {
         reviewService.deleteReview(reviewId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reviews/{reviewId}/helpful")
+    public ResponseEntity<Void> toggleHelpful(@PathVariable Long reviewId) {
+        Long userId = securityUtils.getCurrentUserId();
+        reviewService.toggleHelpful(reviewId, userId);
         return ResponseEntity.noContent().build();
     }
 

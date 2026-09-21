@@ -88,6 +88,11 @@ public class ClubMembershipRepositoryAdapter implements ClubMembershipRepository
         return jpaRepo.countByClubIdAndStatus(clubId, status);
     }
 
+    @Override
+    public void deleteByClubId(Long clubId) {
+        jpaRepo.deleteByClubId(clubId);
+    }
+
     private ClubMembershipEntity mapToEntity(ClubMembership domain) {
         return ClubMembershipEntity.builder()
                 .id(domain.getId())

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../constants/storage'
 import { loginUser, registerUser } from '../services/authService'
+import { registerLogoutHandler } from '../services/authSession'
 import { AuthContext } from './authContext'
 
 const readStoredUser = () => {
@@ -45,12 +46,23 @@ export const AuthProvider = ({ children }) => {
     return authResponse
   }
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem(AUTH_TOKEN_KEY)
     localStorage.removeItem(AUTH_USER_KEY)
     setToken(null)
     setUser(null)
-  }
+  }, [])
+
+  const updateUser = useCallback((partial) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const nextUser = { ...prev, ...partial }
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser))
+      return nextUser
+    })
+  }, [])
+
+  useEffect(() => registerLogoutHandler(logout), [logout])
 
   const value = {
     token,
@@ -59,6 +71,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    updateUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

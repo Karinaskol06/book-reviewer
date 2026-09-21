@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import {
   clearBookStatus,
+  deleteReview,
   getBookDetail,
   getBookReviews,
   getBookStatus,
   setBookStatus,
+  toggleReviewHelpful,
 } from '../services/bookService.js'
 import './BookDetailPage.css'
 
@@ -24,20 +27,45 @@ const toStatusLabel = (status) => {
   return map[status] || status
 }
 
+const toPacingLabel = (pacing) => {
+  if (!pacing) return null
+  const map = { SLOW: 'Slow', MEDIUM: 'Medium', FAST: 'Fast' }
+  return map[pacing] || pacing
+}
+
+const shortenText = (value, max = 140) => {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (text.length <= max) return text
+  return `${text.slice(0, max).trimEnd()}…`
+}
+
+const reviewMoods = (review) => {
+  const moods = Array.isArray(review?.mood) ? review.mood : []
+  if (moods.length) return moods
+  return Array.isArray(review?.tags) ? review.tags : []
+}
+
 const BookDetailPage = () => {
   const { id } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const reviewPageSearchInProgress = useRef(false)
+  const [helpfulBusyId, setHelpfulBusyId] = useState(null)
 
   const [book, setBook] = useState(null)
   const [reviewsPage, setReviewsPage] = useState({ content: [], totalPages: 0, number: 0 })
   const [reviewPage, setReviewPage] = useState(0)
   const [includeSpoilers, setIncludeSpoilers] = useState(false)
-  const [headerSearch, setHeaderSearch] = useState('')
   const [currentStatus, setCurrentStatus] = useState('')
   const [loading, setLoading] = useState(true)
+  const [activeReview, setActiveReview] = useState(null)
+  const [deletingReviewId, setDeletingReviewId] = useState(null)
+
+  const isOwnReview = (review) => (
+    user?.userId != null && Number(review?.user?.id) === Number(user.userId)
+  )
 
   const targetReviewId = useMemo(() => {
     const hash = location.hash || ''
@@ -45,16 +73,6 @@ const BookDetailPage = () => {
     const parsed = Number(hash.replace('#review-', ''))
     return Number.isFinite(parsed) ? parsed : null
   }, [location.hash])
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const query = headerSearch.trim()
-      if (query) {
-        navigate(`/search?query=${encodeURIComponent(query)}&page=0`)
-      }
-    }, 350)
-    return () => clearTimeout(timer)
-  }, [headerSearch, navigate])
 
   useEffect(() => {
     const loadBook = async () => {
@@ -95,9 +113,10 @@ const BookDetailPage = () => {
   useEffect(() => {
     if (!targetReviewId || reviewsPage.content.length === 0) return
 
-    const directTarget = document.getElementById(`review-${targetReviewId}`)
-    if (directTarget) {
-      directTarget.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const match = (reviewsPage.content || []).find((review) => Number(review.id) === targetReviewId)
+    if (match) {
+      setActiveReview(match)
+      document.getElementById(`review-${targetReviewId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       return
     }
 
@@ -110,7 +129,7 @@ const BookDetailPage = () => {
         for (let pageIndex = 0; pageIndex < reviewsPage.totalPages; pageIndex += 1) {
           if (pageIndex === reviewPage) continue
           const pageData = await getBookReviews(id, { page: pageIndex, size: 4, includeSpoilers })
-          const found = (pageData?.content || []).some((review) => Number(review.id) === targetReviewId)
+          const found = (pageData?.content || []).find((review) => Number(review.id) === targetReviewId)
           if (found) {
             setReviewPage(pageIndex)
             return
@@ -121,6 +140,20 @@ const BookDetailPage = () => {
       }
     })()
   }, [id, includeSpoilers, reviewPage, reviewsPage.content, reviewsPage.totalPages, targetReviewId])
+
+  useEffect(() => {
+    if (!activeReview) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setActiveReview(null)
+    }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [activeReview])
 
   const stats = book?.ratingStats || { average: 0, total: 0, distribution: {} }
   const distribution = useMemo(() => {
@@ -153,48 +186,122 @@ const BookDetailPage = () => {
     setCurrentStatus(status)
   }
 
+  const handleToggleHelpful = async (review) => {
+    if (!review?.id || helpfulBusyId != null) return
+    if (isOwnReview(review)) return
+
+    setHelpfulBusyId(review.id)
+    try {
+      await toggleReviewHelpful(review.id)
+      const marked = Boolean(review.hasHelpful)
+      const nextHelpful = {
+        hasHelpful: !marked,
+        helpfulCount: Math.max(0, (review.helpfulCount || 0) + (marked ? -1 : 1)),
+      }
+      setReviewsPage((prev) => ({
+        ...prev,
+        content: (prev.content || []).map((entry) => (
+          Number(entry.id) === Number(review.id) ? { ...entry, ...nextHelpful } : entry
+        )),
+      }))
+      setActiveReview((prev) => (
+        prev && Number(prev.id) === Number(review.id) ? { ...prev, ...nextHelpful } : prev
+      ))
+    } finally {
+      setHelpfulBusyId(null)
+    }
+  }
+
+  const handleDeleteReview = async (review) => {
+    if (!review?.id || !isOwnReview(review) || deletingReviewId != null) return
+    const confirmed = window.confirm('Delete this review? This cannot be undone.')
+    if (!confirmed) return
+
+    setDeletingReviewId(review.id)
+    try {
+      await deleteReview(review.id)
+      setActiveReview((prev) => (prev && Number(prev.id) === Number(review.id) ? null : prev))
+      setReviewsPage((prev) => ({
+        ...prev,
+        content: (prev.content || []).filter((entry) => Number(entry.id) !== Number(review.id)),
+        totalElements: Math.max(0, (prev.totalElements || 1) - 1),
+      }))
+      const refreshed = await getBookDetail(id)
+      setBook(refreshed)
+    } finally {
+      setDeletingReviewId(null)
+    }
+  }
+
+  const renderHelpfulButton = (review) => (
+    <button
+      type="button"
+      className={`review-helpful__btn${review.hasHelpful ? ' is-active' : ''}`}
+      disabled={
+        helpfulBusyId === review.id
+        || isOwnReview(review)
+      }
+      onClick={(event) => {
+        event.stopPropagation()
+        handleToggleHelpful(review)
+      }}
+    >
+      {review.hasHelpful ? 'Helpful' : 'Mark helpful'}
+      <span>{review.helpfulCount || 0}</span>
+    </button>
+  )
+
+  const renderOwnerActions = (review) => {
+    if (!isOwnReview(review)) return null
+    return (
+      <div className="review-owner-actions">
+        <button
+          type="button"
+          className="review-owner-btn"
+          onClick={(event) => {
+            event.stopPropagation()
+            navigate(`/books/${id}/review/${review.id}/edit`)
+          }}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="review-owner-btn review-owner-btn--danger"
+          disabled={deletingReviewId === review.id}
+          onClick={(event) => {
+            event.stopPropagation()
+            handleDeleteReview(review)
+          }}
+        >
+          {deletingReviewId === review.id ? 'Deleting…' : 'Delete'}
+        </button>
+      </div>
+    )
+  }
+
   if (loading) {
-    return <main className="dashboard"><p className="detail-loading">Loading book details...</p></main>
+    return (
+      <AppChrome>
+        <p className="detail-loading">Loading book details...</p>
+      </AppChrome>
+    )
   }
 
   if (!book) {
-    return <main className="dashboard"><p className="detail-loading">Book not found.</p></main>
+    return (
+      <AppChrome>
+        <p className="detail-loading">Book not found.</p>
+      </AppChrome>
+    )
   }
 
   return (
-    <main className="dashboard">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input
-          className="home-nav__search"
-          type="search"
-          placeholder="Search the archive..."
-          value={headerSearch}
-          onChange={(event) => setHeaderSearch(event.target.value)}
-        />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>
-            Logout
-          </button>
-        </div>
-      </header>
-
+    <AppChrome>
       <div className="home-content">
         <section className="book-hero">
           <aside className="book-cover-col">
-            <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+            <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
             <div className="status-actions">
               <button
                 className={currentStatus === 'WANT_TO_READ' ? 'is-active' : ''}
@@ -218,23 +325,62 @@ const BookDetailPage = () => {
                 Read
               </button>
               <button
+                className={currentStatus === 'ABANDONED' ? 'is-active' : ''}
                 type="button"
-                className="add-review-btn"
-                onClick={() => navigate(`/books/${id}/review/new`)}
+                onClick={() => handleSetStatus('ABANDONED')}
               >
-                Add review
+                Abandoned
               </button>
+              {book.userHasReviewed ? (
+                <button
+                  type="button"
+                  className="add-review-btn add-review-btn--done"
+                  onClick={() => {
+                    const own = (reviewsPage.content || []).find((review) => isOwnReview(review))
+                    if (own?.id) {
+                      navigate(`/books/${id}/review/${own.id}/edit`)
+                      return
+                    }
+                    document.getElementById('critical-discourse')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                >
+                  Edit your review
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="add-review-btn"
+                  onClick={() => navigate(`/books/${id}/review/new`)}
+                >
+                  Add review
+                </button>
+              )}
             </div>
           </aside>
 
           <section className="book-main">
-            <p className="book-kicker">BESTSELLER · {(book.genres || [])[0] || 'FICTION'}</p>
+            <p className="book-kicker">
+              {[
+                book.publicationYear ? String(book.publicationYear) : null,
+                (book.genres || []).slice(0, 2).join(' · ') || null,
+                `★ ${(stats.average?.toFixed?.(1) || '0.0')} (${stats.total || 0})`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
             <h2>{book.title}</h2>
             <p className="book-author">by {book.author}</p>
+            <button
+              type="button"
+              className="ghost edit-book-btn"
+              onClick={() => navigate(`/books/${id}/edit`)}
+            >
+              Edit book
+            </button>
 
             <div className="book-stats-row">
               <span>★ {stats.average?.toFixed?.(1) || '0.0'} ({stats.total || 0} reviews)</span>
-              <span>{book.publicationYear || 'N/A'} edition</span>
+              <span>{book.publicationYear ? `Published ${book.publicationYear}` : 'Year unknown'}</span>
               <span>Status: {toStatusLabel(currentStatus)}</span>
             </div>
 
@@ -251,7 +397,7 @@ const BookDetailPage = () => {
           </section>
         </section>
 
-        <section className="critical">
+        <section className="critical" id="critical-discourse">
           <h3>Critical Discourse</h3>
           <div className="rating-summary">
             <div className="rating-box">
@@ -272,43 +418,66 @@ const BookDetailPage = () => {
           </div>
 
           <div className="reviews-grid">
-            {sortedReviews.map((review) => (
-              <article key={review.id} id={`review-${review.id}`} className="review-card">
-                <header>
-                  <div className="reviewer">
-                    <img
-                      src={resolveMediaUrl(review.user?.avatarUrl, '/user-stub.png')}
-                      alt={review.user?.username || 'Reviewer'}
-                    />
-                    <div>
-                      <h4>{review.user?.username || 'Anonymous'}</h4>
-                      <p>{review.user?.badge || 'Reviewer'} · {review.user?.booksReviewed || 0} books</p>
+            {sortedReviews.map((review) => {
+              const moods = reviewMoods(review).slice(0, 4)
+              const warnings = Array.isArray(review.contentWarnings) ? review.contentWarnings : []
+              const pacingLabel = toPacingLabel(review.pacing)
+              const verdict = String(review.verdict || '').trim()
+              const forReaders = shortenText(review.whoIsItFor, 120)
+
+              return (
+                <article key={review.id} id={`review-${review.id}`} className="review-card">
+                  <header>
+                    <div className="reviewer">
+                      <img
+                        src={resolveMediaUrl(review.user?.avatarUrl, '/user-stub.png')}
+                        alt={review.user?.username || 'Reviewer'}
+                      />
+                      <div>
+                        <h4>{review.user?.username || 'Anonymous'}</h4>
+                        <p>{review.user?.badge || 'Reviewer'} · {review.user?.booksReviewed || 0} books</p>
+                      </div>
                     </div>
+                    <span className="review-stars">
+                      {'★'.repeat(review.rating || 0)}{'☆'.repeat(5 - (review.rating || 0))}
+                    </span>
+                  </header>
+
+                  <div className="review-meta">
+                    {pacingLabel && <span className="review-chip review-chip--pacing">Pacing · {pacingLabel}</span>}
+                    {warnings.length > 0 && (
+                      <span className="review-chip review-chip--warn">
+                        {warnings.length} warning{warnings.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {review.hasSpoiler && <span className="review-chip review-chip--spoiler">Spoilers</span>}
                   </div>
-                  <span className="review-stars">{'★'.repeat(review.rating || 0)}{'☆'.repeat(5 - (review.rating || 0))}</span>
-                </header>
-                <div className="review-body">
-                  <div className="review-body__left">
+
+                  <div className="review-summary">
+                    <p className="review-label">Verdict</p>
+                    <p className="review-summary__verdict">{verdict || 'No verdict provided.'}</p>
                     <p className="review-label">Who this book is for</p>
-                    <p>{review.whoIsItFor || 'No details provided.'}</p>
-                    <p className="review-label">Who this book is not for</p>
-                    <p>{review.whoIsItNotFor || 'No details provided.'}</p>
+                    <p>{forReaders || 'No details provided.'}</p>
                   </div>
-                  <aside className="review-verdict">
-                    <p className="review-label verdict-label">The verdict</p>
-                    <p>{review.verdict || review.detailedReview || 'No verdict provided.'}</p>
-                  </aside>
-                </div>
-                <div className="review-tags">
-                  {(review.tags || []).map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                </div>
-                {includeSpoilers && review.hasSpoiler && review.spoilerContent && (
-                  <p className="spoiler-text">{review.spoilerContent}</p>
-                )}
-              </article>
-            ))}
+
+                  {moods.length > 0 && (
+                    <div className="review-tags">
+                      {moods.map((tag) => (
+                        <span key={tag}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="review-card__actions">
+                    {renderHelpfulButton(review)}
+                    <button type="button" className="review-open-btn" onClick={() => setActiveReview(review)}>
+                      Read full review
+                    </button>
+                    {renderOwnerActions(review)}
+                  </div>
+                </article>
+              )
+            })}
           </div>
 
           <div className="pagination">
@@ -339,16 +508,135 @@ const BookDetailPage = () => {
         </section>
       </div>
 
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-    </main>
+      {activeReview && (
+        <div
+          className="review-modal-backdrop"
+          role="presentation"
+          onClick={() => setActiveReview(null)}
+        >
+          <div
+            className="review-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`review-modal-title-${activeReview.id}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="review-modal__header">
+              <div className="reviewer">
+                <img
+                  src={resolveMediaUrl(activeReview.user?.avatarUrl, '/user-stub.png')}
+                  alt={activeReview.user?.username || 'Reviewer'}
+                />
+                <div>
+                  <h3 id={`review-modal-title-${activeReview.id}`}>
+                    {activeReview.user?.username || 'Anonymous'}
+                  </h3>
+                  <p>
+                    {activeReview.user?.badge || 'Reviewer'}
+                    {' · '}
+                    {activeReview.user?.booksReviewed || 0} books
+                  </p>
+                </div>
+              </div>
+              <div className="review-modal__header-right">
+                <span className="review-stars">
+                  {'★'.repeat(activeReview.rating || 0)}{'☆'.repeat(5 - (activeReview.rating || 0))}
+                </span>
+                <button
+                  type="button"
+                  className="review-modal__close"
+                  aria-label="Close review"
+                  onClick={() => setActiveReview(null)}
+                >
+                  ×
+                </button>
+              </div>
+            </header>
+
+            <div className="review-modal__meta">
+              {toPacingLabel(activeReview.pacing) && (
+                <span className="review-chip review-chip--pacing">
+                  Pacing · {toPacingLabel(activeReview.pacing)}
+                </span>
+              )}
+              {(activeReview.contentWarnings || []).length > 0 && (
+                <span className="review-chip review-chip--warn">
+                  {(activeReview.contentWarnings || []).length} warning
+                  {(activeReview.contentWarnings || []).length > 1 ? 's' : ''}
+                </span>
+              )}
+              {activeReview.hasSpoiler && (
+                <span className="review-chip review-chip--spoiler">Contains spoilers</span>
+              )}
+            </div>
+
+            <div className="review-modal__body">
+              <section>
+                <p className="review-label">The verdict</p>
+                <p className="review-modal__verdict">
+                  {activeReview.verdict || 'No verdict provided.'}
+                </p>
+              </section>
+
+              <div className="review-modal__split">
+                <section>
+                  <p className="review-label">Who this book is for</p>
+                  <p>{activeReview.whoIsItFor || 'No details provided.'}</p>
+                </section>
+                <section>
+                  <p className="review-label">Who this book is not for</p>
+                  <p>{activeReview.whoIsItNotFor || 'No details provided.'}</p>
+                </section>
+              </div>
+
+              {activeReview.detailedReview && (
+                <section>
+                  <p className="review-label">Full review</p>
+                  <p className="review-modal__long">{activeReview.detailedReview}</p>
+                </section>
+              )}
+
+              {reviewMoods(activeReview).length > 0 && (
+                <section>
+                  <p className="review-label">Mood</p>
+                  <div className="review-tags">
+                    {reviewMoods(activeReview).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {(activeReview.contentWarnings || []).length > 0 && (
+                <section>
+                  <p className="review-label">Content warnings</p>
+                  <div className="review-tags review-tags--warn">
+                    {activeReview.contentWarnings.map((warning) => (
+                      <span key={warning}>{warning}</span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {includeSpoilers && activeReview.hasSpoiler && activeReview.spoilerContent && (
+                <section className="review-modal__spoiler">
+                  <p className="review-label">Spoilers</p>
+                  <p>{activeReview.spoilerContent}</p>
+                </section>
+              )}
+            </div>
+
+            <footer className="review-modal__footer">
+              {renderHelpfulButton(activeReview)}
+              {renderOwnerActions(activeReview)}
+              <button type="button" className="review-open-btn" onClick={() => setActiveReview(null)}>
+                Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+    </AppChrome>
   )
 }
 

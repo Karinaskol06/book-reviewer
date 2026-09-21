@@ -1,6 +1,7 @@
 package com.project.bookreviewer.application.dto.response;
 
 
+import com.project.bookreviewer.domain.model.Pacing;
 import com.project.bookreviewer.domain.model.ReadingStatus;
 import lombok.Builder;
 import lombok.Data;
@@ -16,6 +17,7 @@ public class BookResponse {
     private String coverUrl;
     private Integer publicationYear;
     private Set<String> genres;
+    private Pacing pacing;
     private Double averageRating;   // will be populated later
     private RatingStatsDto ratingStats;
     private ReadingStatus userReadingStatus; // if authenticated

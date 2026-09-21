@@ -11,14 +11,14 @@ import java.util.Optional;
 public interface BookRepositoryPort {
     Book save(Book book);
     List<Book> search(String query, int page, int size);
+    long countSearch(String query);
     long count();
     Optional<Book> findById(Long id);
-    Optional<Book> findByNormalizedTitleAndAuthor(String normalizedTitle, String author);
+    Optional<Book> findByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor);
     List<Book> findAll(int page, int size);
     List<Book> findByGenre(String genre, int page, int size);
-    List<Book> findTrending(int limit);  // for home page
-    Optional<Book> findFeatured();       // for home page
-    boolean existsByNormalizedTitleAndAuthor(String normalizedTitle, String author);
+    List<Book> findTrending(int limit, Long excludeUserId);
+    boolean existsByNormalizedTitleAndNormalizedAuthor(String normalizedTitle, String normalizedAuthor);
 
     Page<Book> filterBooks(BookFilterCriteria criteria, Pageable pageable);
     List<String> findAllGenres();

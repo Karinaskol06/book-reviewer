@@ -13,7 +13,12 @@ export const resolveMediaUrl = (url, fallback = '') => {
     return value
   }
 
-  const normalizedPath = value.startsWith('/') ? value : `/${value}`
+  // Bare storage keys (e.g. avatars/uuid.jpg) must go through the public uploads mount.
+  const storageKey = !value.startsWith('/') && /^[\w-]+\//.test(value)
+    ? `/uploads-book-reviewer/${value}`
+    : null
+
+  const normalizedPath = storageKey || (value.startsWith('/') ? value : `/${value}`)
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 
   if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {

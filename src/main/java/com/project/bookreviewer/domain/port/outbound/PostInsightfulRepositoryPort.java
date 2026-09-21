@@ -11,4 +11,5 @@ public interface PostInsightfulRepositoryPort {
     long countByPostId(Long postId);
     boolean existsByPostIdAndUserId(Long postId, Long userId);
     void deleteByPostId(Long postId);
+    void deleteByClubId(Long clubId);
 }

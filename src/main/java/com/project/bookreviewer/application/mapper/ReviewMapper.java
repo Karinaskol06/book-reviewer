@@ -16,6 +16,7 @@ public abstract class ReviewMapper {
 
     @Mapping(target = "user", source = "userId", qualifiedByName = "buildUserDtoFromUserId")
     @Mapping(target = "spoilerContent", ignore = true)
+    @Mapping(target = "hasHelpful", ignore = true)
     public abstract ReviewResponse toResponse(Review review);
 
     public ReviewResponse toResponse(Review review, boolean includeSpoilers) {

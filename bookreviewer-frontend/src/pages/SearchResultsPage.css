@@ -39,8 +39,8 @@
 }
 
 .filter-tags button.is-active {
-  background: #85a663;
-  color: #102c10;
+  background: #749283;
+  color: #fff9ee;
 }
 
 .year-row {
@@ -107,10 +107,22 @@
   display: block;
 }
 
+.result-card__body {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .result-card h4 {
   margin: 0.2rem 0 0.25rem;
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 1.75rem;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .result-card .author {
@@ -128,13 +140,21 @@
 }
 
 .result-card .desc {
-  margin-top: 0.55rem;
+  margin: 0.55rem 0 0;
   color: rgba(2, 40, 89, 0.8);
   line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: calc(1.45em * 4);
 }
 
 .result-card__add-review {
-  margin-top: 0.7rem;
+  margin-top: auto;
+  align-self: flex-start;
   border: none;
   background: #2c5273;
   color: #f2e0d0;

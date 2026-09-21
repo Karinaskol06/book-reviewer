@@ -24,6 +24,37 @@ export const getBooksByGenre = async (genre, size = 1) => {
   return response.data || []
 }
 
+export const getCollectionShelves = async ({ genres, genreCount = 4, booksPerGenre = 3 } = {}) => {
+  const source = Array.isArray(genres) ? genres : await getGenres()
+  const all = Array.isArray(source) ? source : []
+
+  const findGenre = (name) =>
+    all.find((genre) => String(genre).toLowerCase() === name.toLowerCase())
+
+  const classics = findGenre('Classics')
+  const darkAcademia = findGenre('Dark Academia')
+  const dystopian = findGenre('Dystopian')
+  const fillers = all.filter(
+    (genre) => genre !== classics && genre !== darkAcademia && genre !== dystopian,
+  )
+
+  const ordered = [
+    classics,
+    darkAcademia,
+    ...fillers.slice(0, Math.max(0, genreCount - 3)),
+    dystopian,
+  ].filter(Boolean)
+
+  const selected = ordered.slice(0, genreCount)
+
+  return Promise.all(
+    selected.map(async (genre) => {
+      const books = await getBooksByGenre(genre, booksPerGenre)
+      return { genre, books: Array.isArray(books) ? books : [] }
+    }),
+  )
+}
+
 export const filterBooks = async ({
   query = '',
   genres = [],
@@ -42,7 +73,7 @@ export const filterBooks = async ({
     pacing: pacing || undefined,
     yearFrom: yearFrom || undefined,
     yearTo: yearTo || undefined,
-    contentSafe: contentSafe === null || contentSafe === undefined ? undefined : contentSafe,
+    contentSafe: contentSafe === true ? true : undefined,
     page,
     size,
   }

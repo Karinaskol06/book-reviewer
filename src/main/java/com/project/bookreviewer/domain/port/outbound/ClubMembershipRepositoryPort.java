@@ -21,4 +21,5 @@ public interface ClubMembershipRepositoryPort {
     boolean existsByClubIdAndUserIdAndRole(Long clubId, Long userId, ClubRole role);
     long countByClubId(Long clubId);
     long countByClubIdAndStatus(Long clubId, ClubMembershipStatus status);
+    void deleteByClubId(Long clubId);
 }

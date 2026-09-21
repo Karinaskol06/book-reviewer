@@ -28,6 +28,7 @@ public class ActivityEventRepositoryAdapter implements ActivityEventRepositoryPo
                 .bookId(event.getBookId())
                 .reviewId(event.getReviewId())
                 .additionalData(event.getAdditionalData())
+                .createdAt(event.getCreatedAt())
                 .build();
         ActivityEventEntity saved = jpaRepo.save(entity);
         return mapToDomain(saved);
@@ -64,6 +65,27 @@ public class ActivityEventRepositoryAdapter implements ActivityEventRepositoryPo
             Long actorId, Long targetUserId, Long bookId, ActivityType type, LocalDateTime createdAt) {
         return jpaRepo.existsByActorIdAndTargetUserIdAndBookIdAndTypeAndCreatedAt(
                 actorId, targetUserId, bookId, type, createdAt);
+    }
+
+    @Override
+    public boolean existsByReviewIdAndTargetUserId(Long reviewId, Long targetUserId) {
+        return jpaRepo.existsByReviewIdAndTargetUserId(reviewId, targetUserId);
+    }
+
+    @Override
+    public boolean existsByActorIdAndTargetUserIdAndBookIdAndType(
+            Long actorId, Long targetUserId, Long bookId, ActivityType type) {
+        return jpaRepo.existsByActorIdAndTargetUserIdAndBookIdAndType(actorId, targetUserId, bookId, type);
+    }
+
+    @Override
+    public void deleteByReviewId(Long reviewId) {
+        jpaRepo.deleteByReviewId(reviewId);
+    }
+
+    @Override
+    public void deleteByActorIdAndTargetUserId(Long actorId, Long targetUserId) {
+        jpaRepo.deleteByActorIdAndTargetUserId(actorId, targetUserId);
     }
 
     private ActivityEvent mapToDomain(ActivityEventEntity entity) {

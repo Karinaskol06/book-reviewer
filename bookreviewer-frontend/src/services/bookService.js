@@ -26,8 +26,14 @@ export const clearBookStatus = async (bookId) => {
   await api.delete(`/user/books/${bookId}/status`)
 }
 
-export const checkBookDuplicate = async (title, author) => {
-  const response = await api.get('/books/check', { params: { title, author } })
+export const checkBookDuplicate = async (title, author, excludeBookId) => {
+  const response = await api.get('/books/check', {
+    params: {
+      title,
+      author,
+      excludeBookId: excludeBookId || undefined,
+    },
+  })
   return response.data
 }
 
@@ -36,7 +42,41 @@ export const createBook = async (payload) => {
   return response.data
 }
 
+export const updateBook = async (bookId, payload) => {
+  const response = await api.put(`/books/${bookId}`, payload)
+  return response.data
+}
+
+export const uploadBookCover = async (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post('/books/covers', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
 export const createReview = async (bookId, payload) => {
   const response = await api.post(`/books/${bookId}/reviews`, payload)
   return response.data
+}
+
+export const getReview = async (reviewId, { includeSpoilers = true } = {}) => {
+  const response = await api.get(`/reviews/${reviewId}`, {
+    params: { includeSpoilers },
+  })
+  return response.data
+}
+
+export const updateReview = async (reviewId, payload) => {
+  const response = await api.put(`/reviews/${reviewId}`, payload)
+  return response.data
+}
+
+export const deleteReview = async (reviewId) => {
+  await api.delete(`/reviews/${reviewId}`)
+}
+
+export const toggleReviewHelpful = async (reviewId) => {
+  await api.post(`/reviews/${reviewId}/helpful`)
 }

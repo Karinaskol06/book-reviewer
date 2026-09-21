@@ -45,6 +45,11 @@ public class PostInsightfulRepositoryAdapter implements PostInsightfulRepository
         jpaRepo.deleteByPostId(postId);
     }
 
+    @Override
+    public void deleteByClubId(Long clubId) {
+        jpaRepo.deleteByClubId(clubId);
+    }
+
     private PostInsightfulEntity mapToEntity(PostInsightful domain) {
         return PostInsightfulEntity.builder()
                 .id(domain.getId())

@@ -1,27 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth.js'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import { useDebounce } from '../hooks/useDebounce.js'
 import { getGenres } from '../services/homeService.js'
-import { checkBookDuplicate, createBook, getBookDetail } from '../services/bookService.js'
+import {
+  checkBookDuplicate,
+  createBook,
+  getBookDetail,
+  updateBook,
+  uploadBookCover,
+} from '../services/bookService.js'
+import { resolveMediaUrl } from '../utils/media.js'
+import { findGenreByKey, genreKey, toGenreLabel } from '../utils/genre.js'
 import './AddBookPage.css'
 
 const AddBookPage = () => {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { id: editBookId } = useParams()
   const [searchParams] = useSearchParams()
   const fileInputRef = useRef(null)
+  const isEditMode = Boolean(editBookId)
 
-  const [headerSearch, setHeaderSearch] = useState('')
   const [availableGenres, setAvailableGenres] = useState([])
-  const [customGenre, setCustomGenre] = useState('')
+  const [genreQuery, setGenreQuery] = useState('')
+  const [genreFeedback, setGenreFeedback] = useState({ tone: '', text: '' })
   const [duplicateInfo, setDuplicateInfo] = useState(null)
   const [duplicateBook, setDuplicateBook] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [coverUploading, setCoverUploading] = useState(false)
+  const [coverError, setCoverError] = useState('')
+  const [loadingBook, setLoadingBook] = useState(isEditMode)
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const initialQuery = searchParams.get('query') || ''
   const [form, setForm] = useState({
-    title: initialQuery,
+    title: isEditMode ? '' : initialQuery,
     author: '',
     publicationYear: '',
     description: '',
@@ -36,19 +50,41 @@ const AddBookPage = () => {
   useEffect(() => {
     const loadGenres = async () => {
       const list = await getGenres()
-      setAvailableGenres(list)
+      setAvailableGenres(Array.isArray(list) ? list : [])
     }
     loadGenres()
   }, [])
 
   useEffect(() => {
-    const query = headerSearch.trim()
-    if (!query) return
-    const timer = setTimeout(() => {
-      navigate(`/search?query=${encodeURIComponent(query)}&page=0`)
-    }, 350)
-    return () => clearTimeout(timer)
-  }, [headerSearch, navigate])
+    if (!isEditMode) return undefined
+    let cancelled = false
+    const loadBook = async () => {
+      setLoadingBook(true)
+      try {
+        const book = await getBookDetail(editBookId)
+        if (cancelled) return
+        setForm({
+          title: book.title || '',
+          author: book.author || '',
+          publicationYear: book.publicationYear != null ? String(book.publicationYear) : '',
+          description: book.description || '',
+          genres: Array.isArray(book.genres) ? book.genres : [],
+          coverUrl: book.coverUrl || '',
+        })
+        setCoverPreview(book.coverUrl ? resolveMediaUrl(book.coverUrl, '') : '')
+      } catch {
+        if (!cancelled) {
+          setSubmitError('Could not load this book for editing.')
+        }
+      } finally {
+        if (!cancelled) setLoadingBook(false)
+      }
+    }
+    loadBook()
+    return () => {
+      cancelled = true
+    }
+  }, [editBookId, isEditMode])
 
   useEffect(() => {
     const runDuplicateCheck = async () => {
@@ -57,14 +93,18 @@ const AddBookPage = () => {
         return
       }
       try {
-        const result = await checkBookDuplicate(debouncedTitle, debouncedAuthor)
+        const result = await checkBookDuplicate(
+          debouncedTitle,
+          debouncedAuthor,
+          isEditMode ? editBookId : undefined
+        )
         setDuplicateInfo(result.exists ? result : null)
       } catch {
         setDuplicateInfo(null)
       }
     }
     runDuplicateCheck()
-  }, [debouncedAuthor, debouncedTitle])
+  }, [debouncedAuthor, debouncedTitle, editBookId, isEditMode])
 
   useEffect(() => {
     const loadDuplicateBook = async () => {
@@ -86,43 +126,110 @@ const AddBookPage = () => {
     const required = form.title.trim() && form.author.trim()
     if (!required) return false
     if (duplicateInfo) return false
+    if (coverUploading || submitting || loadingBook) return false
     return true
-  }, [duplicateInfo, form.author, form.title])
+  }, [coverUploading, duplicateInfo, form.author, form.title, loadingBook, submitting])
+
+  const filteredGenres = useMemo(() => {
+    const query = genreKey(genreQuery)
+    const list = [...availableGenres].sort((a, b) => a.localeCompare(b))
+    if (!query) return list
+    return list.filter((genre) => genreKey(genre).includes(query))
+  }, [availableGenres, genreQuery])
+
+  const exactGenreMatch = useMemo(() => findGenreByKey(availableGenres, genreQuery), [availableGenres, genreQuery])
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
 
-  const toggleGenre = (genre) => {
-    setForm((prev) => ({
-      ...prev,
-      genres: prev.genres.includes(genre)
-        ? prev.genres.filter((item) => item !== genre)
-        : [...prev.genres, genre],
-    }))
+  const setGenreMessage = (tone, text) => setGenreFeedback({ tone, text })
+
+  const addGenre = (genre) => {
+    const label = toGenreLabel(genre)
+    if (!label) return
+
+    const alreadySelected = form.genres.some((item) => genreKey(item) === genreKey(label))
+    if (alreadySelected) {
+      const existingLabel = form.genres.find((item) => genreKey(item) === genreKey(label)) || label
+      setGenreMessage('warn', `"${existingLabel}" is already on this book.`)
+      return
+    }
+
+    setForm((prev) => ({ ...prev, genres: [...prev.genres, label] }))
+    setGenreMessage('ok', `Added “${label}”.`)
   }
 
-  const handleAddCustomGenre = () => {
-    const value = customGenre.trim()
-    if (!value) return
-    if (!form.genres.includes(value)) {
-      setForm((prev) => ({ ...prev, genres: [...prev.genres, value] }))
+  const removeGenre = (genre) => {
+    setForm((prev) => ({
+      ...prev,
+      genres: prev.genres.filter((item) => item !== genre),
+    }))
+    setGenreMessage('', '')
+  }
+
+  const toggleGenre = (genre) => {
+    const selected = form.genres.some((item) => genreKey(item) === genreKey(genre))
+    if (selected) {
+      const matched = form.genres.find((item) => genreKey(item) === genreKey(genre))
+      removeGenre(matched || genre)
+      return
     }
-    setCustomGenre('')
+    addGenre(genre)
+  }
+
+  const handleAddFromQuery = () => {
+    const value = genreQuery.trim()
+    if (!value) {
+      setGenreMessage('warn', 'Type a genre name to search or add.')
+      return
+    }
+
+    if (exactGenreMatch) {
+      const alreadySelected = form.genres.some((item) => genreKey(item) === genreKey(exactGenreMatch))
+      if (alreadySelected) {
+        setGenreMessage('warn', `"${exactGenreMatch}" already exists and is already selected.`)
+        return
+      }
+      addGenre(exactGenreMatch)
+      setGenreQuery('')
+      return
+    }
+
+    const label = toGenreLabel(value)
+    if (!label) {
+      setGenreMessage('warn', 'Enter a valid genre name.')
+      return
+    }
+
+    setAvailableGenres((prev) => (findGenreByKey(prev, label) ? prev : [...prev, label]))
+    addGenre(label)
+    setGenreQuery('')
   }
 
   const applyCoverValue = (value) => {
     const normalized = String(value || '').trim()
     updateForm('coverUrl', normalized)
-    setCoverPreview(normalized)
+    setCoverPreview(normalized ? resolveMediaUrl(normalized, '') : '')
+    setCoverError('')
   }
 
-  const handleFile = (file) => {
+  const handleFile = async (file) => {
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '')
-      applyCoverValue(dataUrl)
+    const maxBytes = 10 * 1024 * 1024
+    if (file.size > maxBytes) {
+      setCoverError('Cover must be 10MB or smaller.')
+      return
     }
-    reader.readAsDataURL(file)
+    setCoverUploading(true)
+    setCoverError('')
+    try {
+      const uploaded = await uploadBookCover(file)
+      applyCoverValue(uploaded.coverUrl)
+    } catch (err) {
+      setCoverError(err?.response?.data?.message || 'Could not upload cover.')
+    } finally {
+      setCoverUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   const onDrop = (event) => {
@@ -145,44 +252,43 @@ const AddBookPage = () => {
       genres: form.genres.length ? form.genres : undefined,
     }
 
-    const created = await createBook(payload)
-    navigate(`/books/${created.id}`)
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const saved = isEditMode
+        ? await updateBook(editBookId, payload)
+        : await createBook(payload)
+      navigate(`/books/${saved.id}`)
+    } catch (err) {
+      setSubmitError(err?.response?.data?.message || (isEditMode ? 'Could not update book.' : 'Could not create book.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const addButtonLabel = exactGenreMatch
+    ? (form.genres.some((g) => genreKey(g) === genreKey(exactGenreMatch))
+      ? 'Already added'
+      : 'Add existing')
+    : (genreQuery.trim() ? `Add “${toGenreLabel(genreQuery) || genreQuery.trim()}”` : 'Add genre')
+
+  if (loadingBook) {
+    return (
+      <AppChrome className="add-book-shell">
+        <p className="intro">Loading book…</p>
+      </AppChrome>
+    )
   }
 
   return (
-    <main className="dashboard">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/dashboard#community">Journal</Link>
-        </nav>
-        <input
-          className="home-nav__search"
-          type="search"
-          placeholder="Search the archive..."
-          value={headerSearch}
-          onChange={(e) => setHeaderSearch(e.target.value)}
-        />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={user?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>Logout</button>
-        </div>
-      </header>
-
+    <AppChrome className="add-book-shell">
       <div className="home-content add-book-page">
         <section>
-          <h2>Archival Submission</h2>
+          <h2>{isEditMode ? 'Edit Archival Record' : 'Archival Submission'}</h2>
           <p className="intro">
-            Add a new volume to the collective library. Please ensure the metadata matches the physical
-            edition.
+            {isEditMode
+              ? 'Update this volume’s metadata so titles, covers, and genres stay accurate for readers.'
+              : 'Add a new volume to the collective library. Please ensure the metadata matches the physical edition.'}
           </p>
 
           <form className="book-form" onSubmit={onSubmit}>
@@ -221,7 +327,7 @@ const AddBookPage = () => {
               Cover Image URL (optional)
               <input
                 type="url"
-                value={form.coverUrl}
+                value={form.coverUrl.startsWith('http') ? form.coverUrl : ''}
                 onChange={(e) => applyCoverValue(e.target.value)}
                 placeholder="https://example.com/cover.jpg"
               />
@@ -229,28 +335,97 @@ const AddBookPage = () => {
 
             <div className="genres">
               <p>Taxonomy (Genres)</p>
-              <div className="genre-chips">
-                {availableGenres.map((genre) => (
-                  <button
-                    key={genre}
-                    type="button"
-                    className={form.genres.includes(genre) ? 'active' : ''}
-                    onClick={() => toggleGenre(genre)}
-                  >
-                    {genre}
-                  </button>
-                ))}
-                <input
-                  value={customGenre}
-                  placeholder="+ Add genre"
-                  onChange={(e) => setCustomGenre(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleAddCustomGenre()
-                    }
-                  }}
-                />
+
+              {form.genres.length > 0 && (
+                <div className="genre-selected" aria-label="Selected genres">
+                  {form.genres.map((genre) => (
+                    <button
+                      key={`selected-${genre}`}
+                      type="button"
+                      className="genre-selected__chip"
+                      onClick={() => removeGenre(genre)}
+                      title={`Remove ${genre}`}
+                    >
+                      {genre}
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="genre-add-row">
+                <label className="genre-search-label">
+                  <input
+                    value={genreQuery}
+                    placeholder="Start typing to filter genres…"
+                    onChange={(e) => {
+                      setGenreQuery(e.target.value)
+                      setGenreFeedback({ tone: '', text: '' })
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddFromQuery()
+                      }
+                    }}
+                    aria-describedby="genre-feedback"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="genre-add-btn"
+                  onClick={handleAddFromQuery}
+                  disabled={
+                    !genreQuery.trim()
+                    || (exactGenreMatch
+                      && form.genres.some((g) => genreKey(g) === genreKey(exactGenreMatch)))
+                  }
+                >
+                  {addButtonLabel}
+                </button>
+              </div>
+
+              {genreFeedback.text && (
+                <p
+                  id="genre-feedback"
+                  className={`genre-feedback genre-feedback--${genreFeedback.tone || 'ok'}`}
+                  role="status"
+                >
+                  {genreFeedback.text}
+                </p>
+              )}
+
+              {!genreFeedback.text && exactGenreMatch && (
+                <p id="genre-feedback" className="genre-feedback genre-feedback--hint" role="status">
+                  “{exactGenreMatch}” already exists in the archive
+                  {form.genres.some((g) => genreKey(g) === genreKey(exactGenreMatch))
+                    ? ' and is selected.'
+                    : ' — click Add existing to attach it.'}
+                </p>
+              )}
+
+              {!genreFeedback.text && genreQuery.trim() && !exactGenreMatch && toGenreLabel(genreQuery) && (
+                <p id="genre-feedback" className="genre-feedback genre-feedback--hint" role="status">
+                  No exact match. You can add “{toGenreLabel(genreQuery)}” as a new genre.
+                </p>
+              )}
+
+              <div className="genre-chips" role="group" aria-label="Available genres">
+                {filteredGenres.length === 0 ? (
+                  <p className="genre-empty">No genres match that search.</p>
+                ) : (
+                  filteredGenres.map((genre) => (
+                    <button
+                      key={genre}
+                      type="button"
+                      className={form.genres.some((g) => genreKey(g) === genreKey(genre)) ? 'active' : ''}
+                      onClick={() => toggleGenre(genre)}
+                      aria-pressed={form.genres.some((g) => genreKey(g) === genreKey(genre))}
+                    >
+                      {genre}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 
@@ -263,20 +438,33 @@ const AddBookPage = () => {
               onDragLeave={() => setIsDragging(false)}
               onDrop={onDrop}
             >
-              <p>Drag and drop high-resolution scans, or <button type="button" onClick={() => fileInputRef.current?.click()}>browse archive</button></p>
-              {coverPreview && <img src={coverPreview} alt="Cover preview" />}
+              <p>
+                Drag and drop a cover image, or{' '}
+                <button type="button" onClick={() => fileInputRef.current?.click()}>browse</button>
+              </p>
+              {coverUploading && <p className="cover-hint">Uploading cover…</p>}
+              {coverError && <p className="cover-hint cover-hint--error">{coverError}</p>}
+              {coverPreview && !coverUploading && (
+                <img src={coverPreview} alt="Cover preview" />
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 hidden
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
             </div>
 
+            {submitError && <p className="cover-hint cover-hint--error">{submitError}</p>}
+
             <div className="actions">
-              <button type="submit" disabled={!canSubmit}>Commit to Archive</button>
-              <button type="button" className="ghost" onClick={() => navigate(-1)}>Discard Draft</button>
+              <button type="submit" disabled={!canSubmit}>
+                {isEditMode ? 'Save changes' : 'Commit to Archive'}
+              </button>
+              <button type="button" className="ghost" onClick={() => navigate(-1)}>
+                {isEditMode ? 'Cancel' : 'Discard Draft'}
+              </button>
             </div>
           </form>
         </section>
@@ -288,7 +476,7 @@ const AddBookPage = () => {
               <p>Our archivists identified a potential match for this volume already residing in our collection.</p>
               <div className="duplicate-entry">
                 <img
-                  src={duplicateBook?.coverUrl || '/home-book.jpg'}
+                  src={resolveMediaUrl(duplicateBook?.coverUrl, '/home-book.jpg')}
                   alt={duplicateInfo.title}
                 />
                 <div>
@@ -313,24 +501,14 @@ const AddBookPage = () => {
             <section className="note-box">
               <h3>Archivist&apos;s Note</h3>
               <p className="quote">
-                A library is not just a collection of books, but a sanctuary of human thought. Precision
-                in your entries ensures that future scholars can trace the lineage of every story.
+                Accurate titles and authors keep reviews, shelves, and recommendations tied to the right
+                book - so readers can find what you meant to share.
               </p>
             </section>
           )}
         </aside>
       </div>
-
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-    </main>
+    </AppChrome>
   )
 }
 

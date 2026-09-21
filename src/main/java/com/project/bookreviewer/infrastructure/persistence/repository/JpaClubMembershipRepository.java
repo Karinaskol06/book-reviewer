@@ -39,6 +39,11 @@ public interface JpaClubMembershipRepository extends JpaRepository<ClubMembershi
     @Query("DELETE FROM ClubMembershipEntity m WHERE m.clubId = :clubId AND m.userId = :userId")
     void deleteByClubIdAndUserId(@Param("clubId") Long clubId, @Param("userId") Long userId);
 
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM ClubMembershipEntity m WHERE m.clubId = :clubId")
+    void deleteByClubId(@Param("clubId") Long clubId);
+
     @Query("SELECT m FROM ClubMembershipEntity m WHERE m.userId = :userId AND m.status = 'ACTIVE'")
     List<ClubMembershipEntity> findActiveMembershipsByUserId(@Param("userId") Long userId);
 }

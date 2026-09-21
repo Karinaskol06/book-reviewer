@@ -1,50 +1,99 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { motion, useReducedMotion } from 'framer-motion'
+import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
-import { getBookDetail } from '../services/bookService.js'
-import { getBooksByGenre, getTrendingBooks } from '../services/homeService.js'
+import { getBookDetail, deleteReview } from '../services/bookService.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import {
   exportReadingListPdf,
   getMyProfile,
   getMyReviews,
+  getMyTasteProfile,
+  getRecommendations,
+  getTasteProfileByUserId,
   getUserProfileById,
   getUserLibrary,
   getUserLibraryByUserId,
   getUserReviewsByUserId,
-  updateAboutMe,
+  updateProfile,
   uploadAvatar,
 } from '../services/profileService.js'
+import {
+  followUser,
+  getFollowers,
+  getFollowing,
+  getFollowStats,
+  isFollowingUser,
+  unfollowUser,
+} from '../services/userService.js'
 import './UserProfilePage.css'
+
+const STAT_MODAL_TITLES = {
+  reviews: 'Reviews',
+  followers: 'Followers',
+  following: 'Following',
+}
+
+const formatJoinedDate = (value) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
+
+const socialLinkLabel = (url) => {
+  try {
+    const host = new URL(url.includes('://') ? url : `https://${url}`).hostname.replace(/^www\./, '')
+    return host || url
+  } catch {
+    return url
+  }
+}
+
+const parseSocialLinksInput = (value) =>
+  String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 5)
 
 const UserProfilePage = () => {
   const MotionArticle = motion.article
+  const MotionDiv = motion.div
+  const reduceMotion = useReducedMotion()
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams()
-  const { logout } = useAuth()
+  const { user, updateUser } = useAuth()
   const isOwnProfile = !id
 
   const [profile, setProfile] = useState(null)
-  const [headerSearch, setHeaderSearch] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [aboutMe, setAboutMe] = useState('')
-  const [aboutSaveState, setAboutSaveState] = useState('idle')
+  const [socialLinksText, setSocialLinksText] = useState('')
+  const [profileSaveState, setProfileSaveState] = useState('idle')
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('')
   const [avatarSaveState, setAvatarSaveState] = useState('idle')
   const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState([])
   const [wantToReadBooks, setWantToReadBooks] = useState([])
   const [readBooks, setReadBooks] = useState([])
+  const [abandonedBooks, setAbandonedBooks] = useState([])
   const [myReviews, setMyReviews] = useState([])
-  const [genreCounts, setGenreCounts] = useState({})
+  const [tasteProfile, setTasteProfile] = useState(null)
   const [recommendations, setRecommendations] = useState([])
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
-
-  useEffect(() => {
-    const q = headerSearch.trim()
-    if (!q) return
-    const timer = setTimeout(() => navigate(`/search?query=${encodeURIComponent(q)}&page=0`), 350)
-    return () => clearTimeout(timer)
-  }, [headerSearch, navigate])
+  const [followStats, setFollowStats] = useState({ followers: 0, following: 0 })
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followBusy, setFollowBusy] = useState(false)
+  const [followError, setFollowError] = useState('')
+  const [statsModal, setStatsModal] = useState(null)
+  const [modalPeople, setModalPeople] = useState([])
+  const [modalPeopleLoading, setModalPeopleLoading] = useState(false)
+  const [deletingReviewId, setDeletingReviewId] = useState(null)
+  const [hoveredGenre, setHoveredGenre] = useState(null)
+  const [aboutPanelHeight, setAboutPanelHeight] = useState(null)
+  const aboutPanelRef = useRef(null)
 
   useEffect(() => {
     const load = async () => {
@@ -73,32 +122,67 @@ const UserProfilePage = () => {
 
       const currentProfile = isOwnProfile ? await getMyProfile() : await getUserProfileById(id)
       setProfile(currentProfile)
+      if (isOwnProfile && currentProfile?.avatarUrl) {
+        updateUser?.({ avatarUrl: currentProfile.avatarUrl })
+      }
       setAboutMe(currentProfile.aboutMe || '')
+      setDisplayName(currentProfile.displayName || '')
+      setSocialLinksText(Array.isArray(currentProfile.socialLinks) ? currentProfile.socialLinks.join('\n') : '')
+      setProfileSaveState('idle')
 
-      const [readingStatuses, wantStatuses, readStatuses, allStatuses] = isOwnProfile
-        ? await Promise.all([getUserLibrary('READING'), getUserLibrary('WANT_TO_READ'), getUserLibrary('READ'), getUserLibrary()])
+      try {
+        const stats = await getFollowStats(currentProfile.id)
+        setFollowStats({
+          followers: Number(stats?.followers) || 0,
+          following: Number(stats?.following) || 0,
+        })
+      } catch {
+        setFollowStats({ followers: 0, following: 0 })
+      }
+
+      const viewingOwnAccount = isOwnProfile || String(currentProfile.id) === String(user?.userId)
+      if (!viewingOwnAccount) {
+        try {
+          setIsFollowing(await isFollowingUser(currentProfile.id))
+        } catch {
+          setIsFollowing(false)
+        }
+      } else {
+        setIsFollowing(false)
+      }
+      setFollowError('')
+
+      const [readingStatuses, wantStatuses, readStatuses, abandonedStatuses] = isOwnProfile
+        ? await Promise.all([
+          getUserLibrary('READING'),
+          getUserLibrary('WANT_TO_READ'),
+          getUserLibrary('READ'),
+          getUserLibrary('ABANDONED'),
+        ])
         : await Promise.all([
           getUserLibraryByUserId(currentProfile.id, 'READING'),
           getUserLibraryByUserId(currentProfile.id, 'WANT_TO_READ'),
           getUserLibraryByUserId(currentProfile.id, 'READ'),
-          getUserLibraryByUserId(currentProfile.id),
+          getUserLibraryByUserId(currentProfile.id, 'ABANDONED'),
         ])
 
       const readingBooks = await Promise.all(readingStatuses.map((item) => getBookDetail(item.bookId)))
       const wantBooks = await Promise.all(wantStatuses.map((item) => getBookDetail(item.bookId)))
       const doneBooks = await Promise.all(readStatuses.map((item) => getBookDetail(item.bookId)))
+      const droppedBooks = await Promise.all(abandonedStatuses.map((item) => getBookDetail(item.bookId)))
       setCurrentlyReadingBooks(readingBooks)
       setWantToReadBooks(wantBooks)
       setReadBooks(doneBooks)
+      setAbandonedBooks(droppedBooks)
 
-      const allBooks = await Promise.all(allStatuses.map((item) => getBookDetail(item.bookId)))
-      const genres = {}
-      allBooks.forEach((book) => {
-        ;(book.genres || []).forEach((genre) => {
-          genres[genre] = (genres[genre] || 0) + 1
-        })
-      })
-      setGenreCounts(genres)
+      try {
+        const taste = isOwnProfile
+          ? await getMyTasteProfile()
+          : await getTasteProfileByUserId(currentProfile.id)
+        setTasteProfile(taste || null)
+      } catch {
+        setTasteProfile(null)
+      }
 
       const collectedReviews = []
       const reviews = await getAllReviews(currentProfile.id)
@@ -113,6 +197,7 @@ const UserProfilePage = () => {
           bookId: review.bookId,
           bookTitle: relatedBook?.title || 'Untitled Book',
           bookAuthor: relatedBook?.author || '',
+          bookCover: relatedBook?.coverUrl || '',
         })
       })
       setMyReviews(
@@ -120,76 +205,118 @@ const UserProfilePage = () => {
           .sort((a, b) => new Date(b.review?.createdAt || 0).getTime() - new Date(a.review?.createdAt || 0).getTime()),
       )
 
-      const topGenreNames = Object.entries(genres)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([genre]) => genre)
+      const isPersonalProfile = isOwnProfile || String(currentProfile.id) === String(user?.userId)
 
-      const ownedBookIds = new Set(allBooks.map((book) => book.id))
-      setRecommendationsLoading(true)
-      try {
-        const perGenreResponses = await Promise.all(topGenreNames.map((genre) => getBooksByGenre(genre, 4)))
-        const trendingBooks = await getTrendingBooks(12)
-        const assembled = []
-        const seenIds = new Set()
-
-        perGenreResponses.forEach((response, index) => {
-          const genre = topGenreNames[index]
-          const candidates = Array.isArray(response?.content) ? response.content : response
-          ;(candidates || []).forEach((book) => {
-            if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
-            seenIds.add(book.id)
-            assembled.push({ ...book, reason: `Because you enjoy ${genre}` })
-          })
-        })
-
-        ;(trendingBooks || []).forEach((book) => {
-          if (!book?.id || ownedBookIds.has(book.id) || seenIds.has(book.id)) return
-          seenIds.add(book.id)
-          assembled.push({ ...book, reason: 'Trending in the archive' })
-        })
-
-        setRecommendations(assembled.slice(0, 6))
-      } finally {
+      if (!isPersonalProfile) {
+        setRecommendations([])
         setRecommendationsLoading(false)
+      } else {
+        setRecommendationsLoading(true)
+        try {
+          const recommended = await getRecommendations(6)
+          setRecommendations(Array.isArray(recommended) ? recommended : [])
+        } catch {
+          setRecommendations([])
+        } finally {
+          setRecommendationsLoading(false)
+        }
       }
     }
     load()
-  }, [id, isOwnProfile])
+  }, [id, isOwnProfile, user?.userId])
 
-  const topGenres = useMemo(
-    () =>
-      Object.entries(genreCounts)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, 4),
-    [genreCounts],
-  )
+  const viewingOwnAccount = isOwnProfile || String(profile?.id) === String(user?.userId)
 
-  const moodCounts = useMemo(() => {
-    const counts = {}
-    myReviews.forEach(({ review }) => {
-      ;(review?.mood || []).forEach((mood) => {
-        counts[mood] = (counts[mood] || 0) + 1
+  useEffect(() => {
+    if (!viewingOwnAccount || location.hash !== '#recommendations' || recommendationsLoading) return
+    document.getElementById('recommendations')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [location.hash, recommendationsLoading, viewingOwnAccount])
+
+  const handleToggleFollow = async () => {
+    if (!profile?.id || followBusy || viewingOwnAccount) return
+    setFollowBusy(true)
+    setFollowError('')
+    try {
+      if (isFollowing) {
+        await unfollowUser(profile.id)
+        setIsFollowing(false)
+        setFollowStats((prev) => ({
+          ...prev,
+          followers: Math.max(0, (prev.followers || 0) - 1),
+        }))
+      } else {
+        await followUser(profile.id)
+        setIsFollowing(true)
+        setFollowStats((prev) => ({
+          ...prev,
+          followers: (prev.followers || 0) + 1,
+        }))
+      }
+    } catch {
+      setFollowError(isFollowing ? 'Could not unfollow. Try again.' : 'Could not follow. Try again.')
+    } finally {
+      setFollowBusy(false)
+    }
+  }
+
+  const handleDeleteReview = async (entry) => {
+    const reviewId = entry?.review?.id
+    if (!isOwnProfile || !reviewId || deletingReviewId != null) return
+    const confirmed = window.confirm('Delete this review? This cannot be undone.')
+    if (!confirmed) return
+
+    setDeletingReviewId(reviewId)
+    try {
+      await deleteReview(reviewId)
+      setMyReviews((prev) => prev.filter((item) => Number(item.review?.id) !== Number(reviewId)))
+    } finally {
+      setDeletingReviewId(null)
+    }
+  }
+
+  const topGenres = Array.isArray(tasteProfile?.topGenres) ? tasteProfile.topGenres : []
+  const topMoods = Array.isArray(tasteProfile?.topMoods) ? tasteProfile.topMoods : []
+  const genreChartLabel = topGenres.length > 0
+    ? `Top genres: ${topGenres.map((g) => `${g.name} ${g.sharePercent}%`).join(', ')}`
+    : 'No genre taste data yet'
+  const genreShareTotal = topGenres.reduce((sum, g) => sum + (Number(g.sharePercent) || 0), 0) || 1
+
+  useEffect(() => {
+    const panel = aboutPanelRef.current
+    if (!panel || typeof ResizeObserver === 'undefined') return undefined
+
+    const syncHeight = () => {
+      const nextHeight = Math.round(panel.getBoundingClientRect().height)
+      setAboutPanelHeight((prev) => (prev === nextHeight ? prev : nextHeight))
+    }
+
+    syncHeight()
+    const observer = new ResizeObserver(syncHeight)
+    observer.observe(panel)
+    return () => observer.disconnect()
+  }, [profile, isOwnProfile, displayName, aboutMe, socialLinksText, profileSaveState])
+
+  const saveProfile = async () => {
+    setProfileSaveState('saving')
+    try {
+      const socialLinks = parseSocialLinksInput(socialLinksText)
+      await updateProfile({
+        displayName,
+        aboutMe,
+        socialLinks,
       })
-    })
-    return counts
-  }, [myReviews])
-
-  const topMoods = useMemo(
-    () =>
-      Object.entries(moodCounts)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, 3)
-        .map(([mood]) => mood),
-    [moodCounts],
-  )
-
-  const saveAbout = async () => {
-    setAboutSaveState('saving')
-    await updateAboutMe(aboutMe)
-    setProfile((prev) => ({ ...prev, aboutMe }))
-    setAboutSaveState('saved')
-    setTimeout(() => setAboutSaveState('idle'), 1800)
+      setProfile((prev) => ({
+        ...prev,
+        displayName: displayName.trim() || null,
+        aboutMe: aboutMe.trim() || null,
+        socialLinks,
+      }))
+      setSocialLinksText(socialLinks.join('\n'))
+      setProfileSaveState('saved')
+      setTimeout(() => setProfileSaveState('idle'), 1800)
+    } catch {
+      setProfileSaveState('failed')
+    }
   }
 
   const onAvatarChange = async (event) => {
@@ -211,6 +338,7 @@ const UserProfilePage = () => {
         const normalizedUrl = resolveMediaUrl(uploaded.avatarUrl)
         const cacheBusted = `${normalizedUrl}${normalizedUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
         setProfile((prev) => ({ ...prev, avatarUrl: cacheBusted }))
+        updateUser?.({ avatarUrl: uploaded.avatarUrl || cacheBusted })
         setAvatarSaveState('saved')
         setTimeout(() => {
           setAvatarSaveState('idle')
@@ -235,8 +363,47 @@ const UserProfilePage = () => {
     URL.revokeObjectURL(url)
   }
 
+  const closeStatsModal = () => {
+    setStatsModal(null)
+    setModalPeople([])
+    setModalPeopleLoading(false)
+  }
+
+  const openStatsModal = async (type) => {
+    setStatsModal(type)
+    if (type !== 'followers' && type !== 'following') {
+      setModalPeople([])
+      return
+    }
+    if (!profile?.id) return
+    setModalPeopleLoading(true)
+    try {
+      const people = type === 'followers'
+        ? await getFollowers(profile.id)
+        : await getFollowing(profile.id)
+      setModalPeople(Array.isArray(people) ? people : [])
+    } catch {
+      setModalPeople([])
+    } finally {
+      setModalPeopleLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!statsModal) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') closeStatsModal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [statsModal])
+
   if (!profile) {
-    return <main className="dashboard"><p className="detail-loading">Loading profile...</p></main>
+    return (
+      <AppChrome>
+        <p className="detail-loading">Loading profile...</p>
+      </AppChrome>
+    )
   }
 
   const formatReviewDate = (value) => {
@@ -251,42 +418,22 @@ const UserProfilePage = () => {
     return '★'.repeat(normalized) + '☆'.repeat(5 - normalized)
   }
 
-  const maxGenre = Math.max(...topGenres.map(([, count]) => count), 1)
+  const joinedLabel = formatJoinedDate(profile.joinedAt)
+  const visibleName = (isOwnProfile ? displayName : profile.displayName)?.trim() || profile.username
+  const visibleSocialLinks = isOwnProfile
+    ? parseSocialLinksInput(socialLinksText)
+    : (Array.isArray(profile.socialLinks) ? profile.socialLinks : [])
+  const visibleAbout = isOwnProfile ? aboutMe : (profile.aboutMe || '')
 
   return (
-    <main className="dashboard">
-      <header className="home-nav">
-        <h1>BookReviewer</h1>
-        <nav>
-          <Link to="/dashboard">Home</Link>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/books/new">Add Book</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <input
-          className="home-nav__search"
-          placeholder="Search the archive..."
-          value={headerSearch}
-          onChange={(e) => setHeaderSearch(e.target.value)}
-        />
-        <div className="home-nav__actions">
-          <Link className="home-nav__profile" to="/profile" aria-label="My profile" title={profile?.username || 'My profile'}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 12c2.76 0 5-2.24 5-5S14.76 2 12 2 7 4.24 7 7s2.24 5 5 5Zm0 2c-3.86 0-7 3.14-7 7 0 .55.45 1 1 1h12c.55 0 1-.45 1-1 0-3.86-3.14-7-7-7Z" />
-            </svg>
-          </Link>
-          <button type="button" onClick={logout}>Logout</button>
-        </div>
-      </header>
-
+    <AppChrome>
       <div className="home-content profile-page">
         <section className="profile-top">
           <div className="profile-main">
-            <label className="avatar-upload">
+            <label className={`avatar-upload${isOwnProfile ? '' : ' avatar-upload--readonly'}`}>
               <img
                 src={avatarPreviewUrl || resolveMediaUrl(profile.avatarUrl, '/user-stub.png')}
-                alt={profile.username}
+                alt={visibleName}
                 onError={(event) => {
                   event.currentTarget.src = '/user-stub.png'
                 }}
@@ -294,18 +441,115 @@ const UserProfilePage = () => {
               {isOwnProfile && <input type="file" accept="image/*" hidden onChange={onAvatarChange} />}
               {isOwnProfile && <span>✎</span>}
             </label>
-            <div>
-              <h2>{profile.username}</h2>
-              <textarea
-                className="about"
-                value={aboutMe}
-                onChange={(e) => setAboutMe(e.target.value)}
-                placeholder="Tell readers about yourself..."
-                readOnly={!isOwnProfile}
-              />
-              {isOwnProfile && <button type="button" className="save-about" onClick={saveAbout}>Save About Me</button>}
-              {isOwnProfile && aboutSaveState === 'saving' && <p className="save-hint">Saving...</p>}
-              {isOwnProfile && aboutSaveState === 'saved' && <p className="save-hint save-hint--ok">Saved successfully.</p>}
+
+            <div className="profile-identity">
+              <header className="profile-identity__header">
+                <div className="profile-identity__titles">
+                  <h2>{visibleName}</h2>
+                  <p className="profile-handle">@{profile.username}</p>
+                  {joinedLabel && (
+                    <p className="profile-joined">Joined {joinedLabel}</p>
+                  )}
+                </div>
+              </header>
+
+              <div className="profile-body">
+              <div className="profile-side">
+              <div className="profile-panel" ref={aboutPanelRef}>
+                <section className="profile-panel__block">
+                  <div className="profile-panel__heading">
+                    <h3>About</h3>
+                  </div>
+                  {isOwnProfile ? (
+                    <>
+                      <label className="profile-field">
+                        <span className="profile-field__label">Display name</span>
+                        <input
+                          className="profile-input"
+                          type="text"
+                          maxLength={120}
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder="Your name"
+                          autoComplete="name"
+                        />
+                      </label>
+                      <label className="profile-field">
+                        <span className="profile-field__label">Bio</span>
+                        <textarea
+                          className="about"
+                          value={aboutMe}
+                          onChange={(e) => setAboutMe(e.target.value)}
+                          placeholder="Tell readers about yourself…"
+                          maxLength={1500}
+                        />
+                      </label>
+                    </>
+                  ) : visibleAbout ? (
+                    <p className="profile-about-text">{visibleAbout}</p>
+                  ) : (
+                    <p className="profile-empty">No bio yet.</p>
+                  )}
+                </section>
+
+                <section className="profile-panel__block">
+                  <div className="profile-panel__heading">
+                    <h3>Elsewhere</h3>
+                    {isOwnProfile && <span className="profile-panel__hint">Up to 5 links</span>}
+                  </div>
+                  {isOwnProfile ? (
+                    <>
+                      <label className="profile-field">
+                        <span className="profile-field__label">Social links</span>
+                        <textarea
+                          className="about about--links"
+                          value={socialLinksText}
+                          onChange={(e) => setSocialLinksText(e.target.value)}
+                          placeholder={'instagram.com/you\ngoodreads.com/you'}
+                          rows={4}
+                        />
+                      </label>
+                      {visibleSocialLinks.length > 0 && (
+                        <ul className="profile-socials" aria-label="Link preview">
+                          {visibleSocialLinks.map((link) => (
+                            <li key={link}>
+                              <a href={link.includes('://') ? link : `https://${link}`} target="_blank" rel="noreferrer noopener">
+                                {socialLinkLabel(link)}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  ) : visibleSocialLinks.length > 0 ? (
+                    <ul className="profile-socials">
+                      {visibleSocialLinks.map((link) => (
+                        <li key={link}>
+                          <a href={link.includes('://') ? link : `https://${link}`} target="_blank" rel="noreferrer noopener">
+                            {socialLinkLabel(link)}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="profile-empty">No links yet.</p>
+                  )}
+                </section>
+
+                {isOwnProfile && (
+                  <div className="profile-panel__actions">
+                    <button type="button" className="save-about" onClick={saveProfile}>
+                      Save profile
+                    </button>
+                    {profileSaveState === 'saving' && <p className="save-hint">Saving…</p>}
+                    {profileSaveState === 'saved' && <p className="save-hint save-hint--ok">Saved successfully.</p>}
+                    {profileSaveState === 'failed' && (
+                      <p className="save-hint save-hint--error">Could not save. Check links use http/https.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {isOwnProfile && avatarSaveState === 'saving' && <p className="save-hint">Uploading avatar...</p>}
               {isOwnProfile && avatarSaveState === 'saved' && <p className="save-hint save-hint--ok">Avatar updated.</p>}
               {isOwnProfile && avatarSaveState === 'failed' && (
@@ -314,93 +558,204 @@ const UserProfilePage = () => {
               {isOwnProfile && avatarSaveState === 'tooLarge' && (
                 <p className="save-hint save-hint--error">File is too large. Max avatar size is 10MB.</p>
               )}
-              <div className="stats">
-                <div><strong>{profile.booksRead || 0}</strong><span>Books read</span></div>
-                <div><strong>{profile.booksReviewed || 0}</strong><span>Reviews</span></div>
-                <div><strong>{profile.booksWantToRead || 0}</strong><span>Want to read</span></div>
-              </div>
-            </div>
-          </div>
-          <aside className="taste-card">
-            <h3>Taste Profile</h3>
-            {topGenres.length > 0 ? (
-              <div className="bars">
-                {topGenres.map(([genre, count], idx) => (
-                  <div key={genre} className="bar-item">
-                    <div
-                      className={`bar-fill bar-${idx}`}
-                      style={{ height: `${Math.max(18, Math.round((count / maxGenre) * 110))}px` }}
-                    />
-                    <span>{genre}</span>
+
+              <div className="stats-row">
+                <div className="stats">
+                  <button type="button" className="stats__item" onClick={() => openStatsModal('reviews')}>
+                    <strong>{profile.booksReviewed || 0}</strong>
+                    <span>Reviews</span>
+                  </button>
+                  <button type="button" className="stats__item" onClick={() => openStatsModal('followers')}>
+                    <strong>{followStats.followers}</strong>
+                    <span>Followers</span>
+                  </button>
+                  <button type="button" className="stats__item" onClick={() => openStatsModal('following')}>
+                    <strong>{followStats.following}</strong>
+                    <span>Following</span>
+                  </button>
+                </div>
+                {!viewingOwnAccount && (
+                  <div className="profile-follow-row">
+                    <button
+                      type="button"
+                      className={`profile-follow-btn${isFollowing ? ' profile-follow-btn--following' : ''}`}
+                      onClick={handleToggleFollow}
+                      disabled={followBusy}
+                      aria-pressed={isFollowing}
+                    >
+                      {followBusy ? 'Please wait…' : isFollowing ? 'Unfollow' : 'Follow'}
+                    </button>
+                    {followError && <p className="save-hint save-hint--error">{followError}</p>}
                   </div>
-                ))}
+                )}
               </div>
+              </div>
+
+          <aside
+            className={`taste-card${aboutPanelHeight ? ' taste-card--matched' : ''}`}
+            style={aboutPanelHeight ? { minHeight: `${aboutPanelHeight}px` } : undefined}
+          >
+            <h3>Top genres</h3>
+            {topGenres.length > 0 ? (
+              <>
+                <div
+                  className="genre-spectrum"
+                  role="img"
+                  aria-label={genreChartLabel}
+                  onMouseLeave={() => setHoveredGenre(null)}
+                >
+                  <div className="genre-spectrum__ribbon" aria-hidden="true">
+                    {topGenres.map((genre, idx) => {
+                      const share = Number(genre.sharePercent) || 0
+                      const flexGrow = Math.max(share, 6)
+                      const isActive = hoveredGenre === genre.name
+                      const isDimmed = hoveredGenre && !isActive
+                      return (
+                        <div
+                          key={genre.name}
+                          className={`genre-spectrum__slot${isActive ? ' is-active' : ''}${isDimmed ? ' is-dimmed' : ''}`}
+                          style={{ flexGrow }}
+                          onMouseEnter={() => setHoveredGenre(genre.name)}
+                        >
+                          <MotionDiv
+                            className={`genre-spectrum__segment genre-tone-${idx}`}
+                            initial={reduceMotion ? false : { scaleX: 0 }}
+                            animate={{ scaleX: 1 }}
+                            transition={reduceMotion
+                              ? { duration: 0 }
+                              : { duration: 0.45, delay: idx * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                          />
+                          <span className="genre-spectrum__hint">
+                            <strong>{genre.name}</strong>
+                            <em>{share}% of taste</em>
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <ul className="genre-rank">
+                    {topGenres.map((genre, idx) => {
+                      const share = Number(genre.sharePercent) || 0
+                      const isActive = hoveredGenre === genre.name
+                      return (
+                        <li key={genre.name}>
+                          <button
+                            type="button"
+                            className={`genre-rank__row${isActive ? ' is-active' : ''}`}
+                            onMouseEnter={() => setHoveredGenre(genre.name)}
+                            onFocus={() => setHoveredGenre(genre.name)}
+                            onBlur={() => setHoveredGenre(null)}
+                            aria-label={`${genre.name}, ${share} percent`}
+                          >
+                            <span className={`genre-rank__swatch genre-tone-${idx}`} aria-hidden="true" />
+                            <span className="genre-rank__meta">
+                              <span className="genre-rank__name">{genre.name}</span>
+                              <span className="genre-rank__track" aria-hidden="true">
+                                <span
+                                  className={`genre-rank__fill genre-tone-${idx}`}
+                                  style={{ width: `${Math.max(8, (share / genreShareTotal) * 100)}%` }}
+                                />
+                              </span>
+                            </span>
+                            <span className="genre-rank__pct">{share}%</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+                <p className="taste-caption">
+                  Based on {tasteProfile?.sampleSize || 0} books on {viewingOwnAccount ? 'your' : 'their'} shelves.
+                </p>
+              </>
             ) : (
               <p className="save-hint">Add books to your shelves to build your chart.</p>
             )}
-            <p className="fingerprint-title">Reading fingerprint</p>
-            <div className="fingerprint">
-              {topMoods.length > 0
-                ? topMoods.map((mood) => <span key={mood}>{mood}</span>)
-                : <span>No mood data yet</span>}
+            <div className="taste-card__fingerprint">
+              <p className="fingerprint-title">Reading fingerprint</p>
+              <div className="fingerprint">
+                <div className="fingerprint__row">
+                  {topMoods.length > 0
+                    ? topMoods.map((mood) => (
+                      <span key={mood.name}>{mood.name} · {mood.count}</span>
+                    ))
+                    : <span>No mood data yet</span>}
+                </div>
+                {(tasteProfile?.dominantPacing || tasteProfile?.averageRating != null) && (
+                  <div className="fingerprint__row fingerprint__row--meta">
+                    {tasteProfile?.dominantPacing && (
+                      <span>Pacing · {tasteProfile.dominantPacing}</span>
+                    )}
+                    {tasteProfile?.averageRating != null && (
+                      <span>Avg rating · {tasteProfile.averageRating}</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <section className="recommendations-section">
-          <div className="recommendations-header">
-            <div>
-              <p className="recommendations-kicker">Curated for your next chapter</p>
-              <h3>Recommendations</h3>
+        {viewingOwnAccount && (
+          <section id="recommendations" className="recommendations-section">
+            <div className="recommendations-header">
+              <div>
+                <p className="recommendations-kicker">Curated for your next chapter</p>
+                <h3>Recommendations</h3>
+              </div>
+              <Link className="recommendations-link" to="/search">
+                Explore all books
+              </Link>
             </div>
-            <Link className="recommendations-link" to="/search">
-              Explore all books
-            </Link>
-          </div>
-          {recommendationsLoading && (
-            <div className="recommendations-grid recommendations-grid--loading" aria-hidden="true">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={`rec-skeleton-${index}`} className="recommendation-card recommendation-card--skeleton">
-                  <div className="recommendation-card__cover-skeleton" />
-                  <div className="recommendation-card__line recommendation-card__line--title" />
-                  <div className="recommendation-card__line recommendation-card__line--subtitle" />
-                </div>
-              ))}
-            </div>
-          )}
-          {!recommendationsLoading && recommendations.length === 0 && (
-            <div className="recommendations-empty">
-              <p>This shelf awaits its first story.</p>
-              <span>Read or review a few books to unlock tailored recommendations.</span>
-            </div>
-          )}
-          {!recommendationsLoading && recommendations.length > 0 && (
-            <div className="recommendations-grid">
-              {recommendations.map((book, index) => (
-                <MotionArticle
-                  key={book.id}
-                  className="recommendation-card"
-                  initial={{ opacity: 0, y: 24 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.25 }}
-                  transition={{ duration: 0.45, delay: index * 0.06, ease: 'easeOut' }}
-                  whileHover={{ y: -6, scale: 1.02 }}
-                  whileTap={{ scale: 0.985 }}
-                  onClick={() => navigate(`/books/${book.id}`)}
-                >
-                  <div className="recommendation-card__cover-wrap">
-                    <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+            {recommendationsLoading && (
+              <div className="recommendations-grid recommendations-grid--loading" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={`rec-skeleton-${index}`} className="recommendation-card recommendation-card--skeleton">
+                    <div className="recommendation-card__cover-skeleton" />
+                    <div className="recommendation-card__line recommendation-card__line--title" />
+                    <div className="recommendation-card__line recommendation-card__line--subtitle" />
                   </div>
-                  <div className="recommendation-card__body">
-                    <p className="recommendation-card__reason">{book.reason}</p>
-                    <h4>{book.title}</h4>
-                    <p>{book.author || 'Unknown author'}</p>
-                  </div>
-                </MotionArticle>
-              ))}
-            </div>
-          )}
-        </section>
+                ))}
+              </div>
+            )}
+            {!recommendationsLoading && recommendations.length === 0 && (
+              <div className="recommendations-empty">
+                <p>This shelf awaits its first story.</p>
+                <span>Read or review a few books to unlock tailored recommendations.</span>
+              </div>
+            )}
+            {!recommendationsLoading && recommendations.length > 0 && (
+              <div className="recommendations-grid">
+                {recommendations.map((book, index) => (
+                  <MotionArticle
+                    key={book.id}
+                    className="recommendation-card"
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.25 }}
+                    transition={{ duration: 0.45, delay: index * 0.06, ease: 'easeOut' }}
+                    whileHover={{ y: -6, scale: 1.02 }}
+                    whileTap={{ scale: 0.985 }}
+                    onClick={() => navigate(`/books/${book.id}`)}
+                  >
+                    <div className="recommendation-card__cover-wrap">
+                      <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
+                    </div>
+                    <div className="recommendation-card__body">
+                      <p className="recommendation-card__reason">{book.reason}</p>
+                      <h4>{book.title}</h4>
+                      <p>{book.author || 'Unknown author'}</p>
+                    </div>
+                  </MotionArticle>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="shelf-section">
           <div className="shelf-header">
@@ -410,7 +765,7 @@ const UserProfilePage = () => {
           <div className="shelf-grid">
             {currentlyReadingBooks.map((book) => (
               <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
-                <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                 <h4>{book.title}</h4>
                 <p>{book.author}</p>
               </article>
@@ -425,7 +780,7 @@ const UserProfilePage = () => {
           <div className="shelf-grid">
             {wantToReadBooks.map((book) => (
               <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
-                <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                 <h4>{book.title}</h4>
                 <p>{book.author}</p>
               </article>
@@ -440,7 +795,22 @@ const UserProfilePage = () => {
           <div className="shelf-grid">
             {readBooks.map((book) => (
               <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
-                <img src={book.coverUrl || '/home-book.jpg'} alt={book.title} />
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
+                <h4>{book.title}</h4>
+                <p>{book.author}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="shelf-section shelf-section--tinted">
+          <div className="shelf-header">
+            <h3>Abandoned</h3>
+          </div>
+          <div className="shelf-grid">
+            {abandonedBooks.map((book) => (
+              <article key={book.id} className="shelf-book" onClick={() => navigate(`/books/${book.id}`)}>
+                <img src={resolveMediaUrl(book.coverUrl, '/home-book.jpg')} alt={book.title} />
                 <h4>{book.title}</h4>
                 <p>{book.author}</p>
               </article>
@@ -458,43 +828,160 @@ const UserProfilePage = () => {
             </p>
           )}
           <div className="reviews-grid">
-            {myReviews.map((entry) => (
-              <article
-                key={entry.review.id}
-                className="review-entry"
-                onClick={() => navigate(`/books/${entry.bookId}#review-${entry.review.id}`)}
-              >
-                <div className="review-entry__top">
-                  <h4>{entry.bookTitle}</h4>
-                  <span className="review-entry__rating">{renderReviewStars(entry.review.rating)}</span>
-                </div>
-                <p className="review-entry__author">{entry.bookAuthor}</p>
-                <p className="review-entry__meta">{formatReviewDate(entry.review.createdAt)} · Helpful: {entry.review.helpfulCount || 0}</p>
-                {entry.review.whoIsItFor && (
-                  <p className="review-entry__for"><strong>Who this book is for:</strong> {entry.review.whoIsItFor}</p>
-                )}
-                {Array.isArray(entry.review.mood) && entry.review.mood.length > 0 && (
-                  <div className="review-entry__moods">
-                    {entry.review.mood.slice(0, 4).map((mood) => <span key={mood}>{mood}</span>)}
+            {myReviews.map((entry) => {
+              const verdictText = entry.review.verdict || entry.review.detailedReview || ''
+              return (
+                <article
+                  key={entry.review.id}
+                  className="review-entry"
+                  onClick={() => navigate(`/books/${entry.bookId}#review-${entry.review.id}`)}
+                >
+                  <div className="review-entry__cover">
+                    <img
+                      src={resolveMediaUrl(entry.bookCover, '/home-book.jpg')}
+                      alt=""
+                    />
                   </div>
-                )}
-                <p className="review-entry__verdict">{entry.review.verdict || entry.review.detailedReview || 'No verdict provided.'}</p>
-              </article>
-            ))}
+                  <div className="review-entry__body">
+                    <div className="review-entry__top">
+                      <div className="review-entry__titles">
+                        <h4>{entry.bookTitle}</h4>
+                        {entry.bookAuthor && <p className="review-entry__author">{entry.bookAuthor}</p>}
+                      </div>
+                      <span className="review-entry__rating" aria-label={`${entry.review.rating || 0} stars`}>
+                        {renderReviewStars(entry.review.rating)}
+                      </span>
+                    </div>
+
+                    {verdictText && (
+                      <blockquote className="review-entry__verdict">
+                        “{verdictText}”
+                      </blockquote>
+                    )}
+
+                    {entry.review.whoIsItFor && (
+                      <div className="review-entry__for">
+                        <p className="review-entry__for-label">Who this is for</p>
+                        <p className="review-entry__for-text">{entry.review.whoIsItFor}</p>
+                      </div>
+                    )}
+
+                    {Array.isArray(entry.review.mood) && entry.review.mood.length > 0 && (
+                      <div className="review-entry__moods">
+                        {entry.review.mood.slice(0, 4).map((mood) => (
+                          <span key={mood}>{mood}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="review-entry__meta">
+                      {formatReviewDate(entry.review.createdAt)}
+                      <span aria-hidden="true"> · </span>
+                      Helpful {entry.review.helpfulCount || 0}
+                    </p>
+
+                    {isOwnProfile && (
+                      <div className="review-entry__actions">
+                        <button
+                          type="button"
+                          className="review-entry__action"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            navigate(`/books/${entry.bookId}/review/${entry.review.id}/edit`)
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="review-entry__action review-entry__action--danger"
+                          disabled={deletingReviewId === entry.review.id}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleDeleteReview(entry)
+                          }}
+                        >
+                          {deletingReviewId === entry.review.id ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
           </div>
         </section>
       </div>
 
-      <footer className="home-footer">
-        <h2>BookReviewer</h2>
-        <nav>
-          <Link to="/dashboard#trending">Library</Link>
-          <Link to="/dashboard#collections">Collections</Link>
-          <Link to="/feed">Feed</Link>
-        </nav>
-        <p>© 2026 BookReviewer. The Digital Archivist.</p>
-      </footer>
-    </main>
+      {statsModal && (
+        <div
+          className="profile-stats-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-stats-modal-title"
+          onClick={closeStatsModal}
+        >
+          <div
+            className="profile-stats-modal__panel"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="profile-stats-modal__header">
+              <h3 id="profile-stats-modal-title">{STAT_MODAL_TITLES[statsModal]}</h3>
+              <button type="button" className="profile-stats-modal__close" onClick={closeStatsModal} aria-label="Close">
+                ×
+              </button>
+            </div>
+
+            {statsModal === 'reviews' && (
+              <div className="profile-stats-modal__list">
+                {myReviews.length === 0 && <p className="profile-stats-modal__empty">No reviews yet.</p>}
+                {myReviews.map((entry) => (
+                  <button
+                    key={entry.review.id}
+                    type="button"
+                    className="profile-stats-modal__book"
+                    onClick={() => {
+                      closeStatsModal()
+                      navigate(`/books/${entry.bookId}#review-${entry.review.id}`)
+                    }}
+                  >
+                    <span>
+                      <strong>{entry.bookTitle}</strong>
+                      <em>{entry.bookAuthor || entry.review.verdict || 'Open review'}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {(statsModal === 'followers' || statsModal === 'following') && (
+              <div className="profile-stats-modal__list">
+                {modalPeopleLoading && <p className="profile-stats-modal__empty">Loading…</p>}
+                {!modalPeopleLoading && modalPeople.length === 0 && (
+                  <p className="profile-stats-modal__empty">
+                    {statsModal === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
+                  </p>
+                )}
+                {!modalPeopleLoading && modalPeople.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className="profile-stats-modal__person"
+                    onClick={() => {
+                      closeStatsModal()
+                      navigate(String(person.id) === String(user?.userId) ? '/profile' : `/users/${person.id}`)
+                    }}
+                  >
+                    <img src={resolveMediaUrl(person.avatarUrl, '/user-stub.png')} alt="" />
+                    <strong>{person.username}</strong>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </AppChrome>
   )
 }
 
