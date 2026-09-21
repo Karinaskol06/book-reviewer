@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
 import { getBookDetail, deleteReview } from '../services/bookService.js'
@@ -9,12 +9,14 @@ import {
   exportReadingListPdf,
   getMyProfile,
   getMyReviews,
+  getMyTasteProfile,
   getRecommendations,
+  getTasteProfileByUserId,
   getUserProfileById,
   getUserLibrary,
   getUserLibraryByUserId,
   getUserReviewsByUserId,
-  updateAboutMe,
+  updateProfile,
   uploadAvatar,
 } from '../services/profileService.js'
 import {
@@ -33,8 +35,33 @@ const STAT_MODAL_TITLES = {
   following: 'Following',
 }
 
+const formatJoinedDate = (value) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
+
+const socialLinkLabel = (url) => {
+  try {
+    const host = new URL(url.includes('://') ? url : `https://${url}`).hostname.replace(/^www\./, '')
+    return host || url
+  } catch {
+    return url
+  }
+}
+
+const parseSocialLinksInput = (value) =>
+  String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 5)
+
 const UserProfilePage = () => {
   const MotionArticle = motion.article
+  const MotionDiv = motion.div
+  const reduceMotion = useReducedMotion()
   const navigate = useNavigate()
   const location = useLocation()
   const { id } = useParams()
@@ -42,8 +69,10 @@ const UserProfilePage = () => {
   const isOwnProfile = !id
 
   const [profile, setProfile] = useState(null)
+  const [displayName, setDisplayName] = useState('')
   const [aboutMe, setAboutMe] = useState('')
-  const [aboutSaveState, setAboutSaveState] = useState('idle')
+  const [socialLinksText, setSocialLinksText] = useState('')
+  const [profileSaveState, setProfileSaveState] = useState('idle')
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('')
   const [avatarSaveState, setAvatarSaveState] = useState('idle')
   const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState([])
@@ -51,7 +80,7 @@ const UserProfilePage = () => {
   const [readBooks, setReadBooks] = useState([])
   const [abandonedBooks, setAbandonedBooks] = useState([])
   const [myReviews, setMyReviews] = useState([])
-  const [genreCounts, setGenreCounts] = useState({})
+  const [tasteProfile, setTasteProfile] = useState(null)
   const [recommendations, setRecommendations] = useState([])
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 })
@@ -62,6 +91,9 @@ const UserProfilePage = () => {
   const [modalPeople, setModalPeople] = useState([])
   const [modalPeopleLoading, setModalPeopleLoading] = useState(false)
   const [deletingReviewId, setDeletingReviewId] = useState(null)
+  const [hoveredGenre, setHoveredGenre] = useState(null)
+  const [aboutPanelHeight, setAboutPanelHeight] = useState(null)
+  const aboutPanelRef = useRef(null)
 
   useEffect(() => {
     const load = async () => {
@@ -94,6 +126,9 @@ const UserProfilePage = () => {
         updateUser?.({ avatarUrl: currentProfile.avatarUrl })
       }
       setAboutMe(currentProfile.aboutMe || '')
+      setDisplayName(currentProfile.displayName || '')
+      setSocialLinksText(Array.isArray(currentProfile.socialLinks) ? currentProfile.socialLinks.join('\n') : '')
+      setProfileSaveState('idle')
 
       try {
         const stats = await getFollowStats(currentProfile.id)
@@ -117,20 +152,18 @@ const UserProfilePage = () => {
       }
       setFollowError('')
 
-      const [readingStatuses, wantStatuses, readStatuses, abandonedStatuses, allStatuses] = isOwnProfile
+      const [readingStatuses, wantStatuses, readStatuses, abandonedStatuses] = isOwnProfile
         ? await Promise.all([
           getUserLibrary('READING'),
           getUserLibrary('WANT_TO_READ'),
           getUserLibrary('READ'),
           getUserLibrary('ABANDONED'),
-          getUserLibrary(),
         ])
         : await Promise.all([
           getUserLibraryByUserId(currentProfile.id, 'READING'),
           getUserLibraryByUserId(currentProfile.id, 'WANT_TO_READ'),
           getUserLibraryByUserId(currentProfile.id, 'READ'),
           getUserLibraryByUserId(currentProfile.id, 'ABANDONED'),
-          getUserLibraryByUserId(currentProfile.id),
         ])
 
       const readingBooks = await Promise.all(readingStatuses.map((item) => getBookDetail(item.bookId)))
@@ -142,14 +175,14 @@ const UserProfilePage = () => {
       setReadBooks(doneBooks)
       setAbandonedBooks(droppedBooks)
 
-      const allBooks = await Promise.all(allStatuses.map((item) => getBookDetail(item.bookId)))
-      const genres = {}
-      allBooks.forEach((book) => {
-        ;(book.genres || []).forEach((genre) => {
-          genres[genre] = (genres[genre] || 0) + 1
-        })
-      })
-      setGenreCounts(genres)
+      try {
+        const taste = isOwnProfile
+          ? await getMyTasteProfile()
+          : await getTasteProfileByUserId(currentProfile.id)
+        setTasteProfile(taste || null)
+      } catch {
+        setTasteProfile(null)
+      }
 
       const collectedReviews = []
       const reviews = await getAllReviews(currentProfile.id)
@@ -241,39 +274,49 @@ const UserProfilePage = () => {
     }
   }
 
-  const topGenres = useMemo(
-    () =>
-      Object.entries(genreCounts)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, 4),
-    [genreCounts],
-  )
+  const topGenres = Array.isArray(tasteProfile?.topGenres) ? tasteProfile.topGenres : []
+  const topMoods = Array.isArray(tasteProfile?.topMoods) ? tasteProfile.topMoods : []
+  const genreChartLabel = topGenres.length > 0
+    ? `Top genres: ${topGenres.map((g) => `${g.name} ${g.sharePercent}%`).join(', ')}`
+    : 'No genre taste data yet'
+  const genreShareTotal = topGenres.reduce((sum, g) => sum + (Number(g.sharePercent) || 0), 0) || 1
 
-  const moodCounts = useMemo(() => {
-    const counts = {}
-    myReviews.forEach(({ review }) => {
-      ;(review?.mood || []).forEach((mood) => {
-        counts[mood] = (counts[mood] || 0) + 1
+  useEffect(() => {
+    const panel = aboutPanelRef.current
+    if (!panel || typeof ResizeObserver === 'undefined') return undefined
+
+    const syncHeight = () => {
+      const nextHeight = Math.round(panel.getBoundingClientRect().height)
+      setAboutPanelHeight((prev) => (prev === nextHeight ? prev : nextHeight))
+    }
+
+    syncHeight()
+    const observer = new ResizeObserver(syncHeight)
+    observer.observe(panel)
+    return () => observer.disconnect()
+  }, [profile, isOwnProfile, displayName, aboutMe, socialLinksText, profileSaveState])
+
+  const saveProfile = async () => {
+    setProfileSaveState('saving')
+    try {
+      const socialLinks = parseSocialLinksInput(socialLinksText)
+      await updateProfile({
+        displayName,
+        aboutMe,
+        socialLinks,
       })
-    })
-    return counts
-  }, [myReviews])
-
-  const topMoods = useMemo(
-    () =>
-      Object.entries(moodCounts)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, 3)
-        .map(([mood]) => mood),
-    [moodCounts],
-  )
-
-  const saveAbout = async () => {
-    setAboutSaveState('saving')
-    await updateAboutMe(aboutMe)
-    setProfile((prev) => ({ ...prev, aboutMe }))
-    setAboutSaveState('saved')
-    setTimeout(() => setAboutSaveState('idle'), 1800)
+      setProfile((prev) => ({
+        ...prev,
+        displayName: displayName.trim() || null,
+        aboutMe: aboutMe.trim() || null,
+        socialLinks,
+      }))
+      setSocialLinksText(socialLinks.join('\n'))
+      setProfileSaveState('saved')
+      setTimeout(() => setProfileSaveState('idle'), 1800)
+    } catch {
+      setProfileSaveState('failed')
+    }
   }
 
   const onAvatarChange = async (event) => {
@@ -375,17 +418,22 @@ const UserProfilePage = () => {
     return '★'.repeat(normalized) + '☆'.repeat(5 - normalized)
   }
 
-  const maxGenre = Math.max(...topGenres.map(([, count]) => count), 1)
+  const joinedLabel = formatJoinedDate(profile.joinedAt)
+  const visibleName = (isOwnProfile ? displayName : profile.displayName)?.trim() || profile.username
+  const visibleSocialLinks = isOwnProfile
+    ? parseSocialLinksInput(socialLinksText)
+    : (Array.isArray(profile.socialLinks) ? profile.socialLinks : [])
+  const visibleAbout = isOwnProfile ? aboutMe : (profile.aboutMe || '')
 
   return (
     <AppChrome>
       <div className="home-content profile-page">
         <section className="profile-top">
           <div className="profile-main">
-            <label className="avatar-upload">
+            <label className={`avatar-upload${isOwnProfile ? '' : ' avatar-upload--readonly'}`}>
               <img
                 src={avatarPreviewUrl || resolveMediaUrl(profile.avatarUrl, '/user-stub.png')}
-                alt={profile.username}
+                alt={visibleName}
                 onError={(event) => {
                   event.currentTarget.src = '/user-stub.png'
                 }}
@@ -393,32 +441,115 @@ const UserProfilePage = () => {
               {isOwnProfile && <input type="file" accept="image/*" hidden onChange={onAvatarChange} />}
               {isOwnProfile && <span>✎</span>}
             </label>
-            <div>
-              <h2>{profile.username}</h2>
-              {!viewingOwnAccount && (
-                <div className="profile-follow-row">
-                  <button
-                    type="button"
-                    className={`profile-follow-btn${isFollowing ? ' profile-follow-btn--following' : ''}`}
-                    onClick={handleToggleFollow}
-                    disabled={followBusy}
-                    aria-pressed={isFollowing}
-                  >
-                    {followBusy ? 'Please wait…' : isFollowing ? 'Unfollow' : 'Follow'}
-                  </button>
-                  {followError && <p className="save-hint save-hint--error">{followError}</p>}
+
+            <div className="profile-identity">
+              <header className="profile-identity__header">
+                <div className="profile-identity__titles">
+                  <h2>{visibleName}</h2>
+                  <p className="profile-handle">@{profile.username}</p>
+                  {joinedLabel && (
+                    <p className="profile-joined">Joined {joinedLabel}</p>
+                  )}
                 </div>
-              )}
-              <textarea
-                className="about"
-                value={aboutMe}
-                onChange={(e) => setAboutMe(e.target.value)}
-                placeholder="Tell readers about yourself..."
-                readOnly={!isOwnProfile}
-              />
-              {isOwnProfile && <button type="button" className="save-about" onClick={saveAbout}>Save About Me</button>}
-              {isOwnProfile && aboutSaveState === 'saving' && <p className="save-hint">Saving...</p>}
-              {isOwnProfile && aboutSaveState === 'saved' && <p className="save-hint save-hint--ok">Saved successfully.</p>}
+              </header>
+
+              <div className="profile-body">
+              <div className="profile-side">
+              <div className="profile-panel" ref={aboutPanelRef}>
+                <section className="profile-panel__block">
+                  <div className="profile-panel__heading">
+                    <h3>About</h3>
+                  </div>
+                  {isOwnProfile ? (
+                    <>
+                      <label className="profile-field">
+                        <span className="profile-field__label">Display name</span>
+                        <input
+                          className="profile-input"
+                          type="text"
+                          maxLength={120}
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder="Your name"
+                          autoComplete="name"
+                        />
+                      </label>
+                      <label className="profile-field">
+                        <span className="profile-field__label">Bio</span>
+                        <textarea
+                          className="about"
+                          value={aboutMe}
+                          onChange={(e) => setAboutMe(e.target.value)}
+                          placeholder="Tell readers about yourself…"
+                          maxLength={1500}
+                        />
+                      </label>
+                    </>
+                  ) : visibleAbout ? (
+                    <p className="profile-about-text">{visibleAbout}</p>
+                  ) : (
+                    <p className="profile-empty">No bio yet.</p>
+                  )}
+                </section>
+
+                <section className="profile-panel__block">
+                  <div className="profile-panel__heading">
+                    <h3>Elsewhere</h3>
+                    {isOwnProfile && <span className="profile-panel__hint">Up to 5 links</span>}
+                  </div>
+                  {isOwnProfile ? (
+                    <>
+                      <label className="profile-field">
+                        <span className="profile-field__label">Social links</span>
+                        <textarea
+                          className="about about--links"
+                          value={socialLinksText}
+                          onChange={(e) => setSocialLinksText(e.target.value)}
+                          placeholder={'instagram.com/you\ngoodreads.com/you'}
+                          rows={4}
+                        />
+                      </label>
+                      {visibleSocialLinks.length > 0 && (
+                        <ul className="profile-socials" aria-label="Link preview">
+                          {visibleSocialLinks.map((link) => (
+                            <li key={link}>
+                              <a href={link.includes('://') ? link : `https://${link}`} target="_blank" rel="noreferrer noopener">
+                                {socialLinkLabel(link)}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  ) : visibleSocialLinks.length > 0 ? (
+                    <ul className="profile-socials">
+                      {visibleSocialLinks.map((link) => (
+                        <li key={link}>
+                          <a href={link.includes('://') ? link : `https://${link}`} target="_blank" rel="noreferrer noopener">
+                            {socialLinkLabel(link)}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="profile-empty">No links yet.</p>
+                  )}
+                </section>
+
+                {isOwnProfile && (
+                  <div className="profile-panel__actions">
+                    <button type="button" className="save-about" onClick={saveProfile}>
+                      Save profile
+                    </button>
+                    {profileSaveState === 'saving' && <p className="save-hint">Saving…</p>}
+                    {profileSaveState === 'saved' && <p className="save-hint save-hint--ok">Saved successfully.</p>}
+                    {profileSaveState === 'failed' && (
+                      <p className="save-hint save-hint--error">Could not save. Check links use http/https.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {isOwnProfile && avatarSaveState === 'saving' && <p className="save-hint">Uploading avatar...</p>}
               {isOwnProfile && avatarSaveState === 'saved' && <p className="save-hint save-hint--ok">Avatar updated.</p>}
               {isOwnProfile && avatarSaveState === 'failed' && (
@@ -427,46 +558,146 @@ const UserProfilePage = () => {
               {isOwnProfile && avatarSaveState === 'tooLarge' && (
                 <p className="save-hint save-hint--error">File is too large. Max avatar size is 10MB.</p>
               )}
-              <div className="stats">
-                <button type="button" className="stats__item" onClick={() => openStatsModal('reviews')}>
-                  <strong>{profile.booksReviewed || 0}</strong>
-                  <span>Reviews</span>
-                </button>
-                <button type="button" className="stats__item" onClick={() => openStatsModal('followers')}>
-                  <strong>{followStats.followers}</strong>
-                  <span>Followers</span>
-                </button>
-                <button type="button" className="stats__item" onClick={() => openStatsModal('following')}>
-                  <strong>{followStats.following}</strong>
-                  <span>Following</span>
-                </button>
-              </div>
-            </div>
-          </div>
-          <aside className="taste-card">
-            <h3>Taste Profile</h3>
-            {topGenres.length > 0 ? (
-              <div className="bars">
-                {topGenres.map(([genre, count], idx) => (
-                  <div key={genre} className="bar-item">
-                    <div
-                      className={`bar-fill bar-${idx}`}
-                      style={{ height: `${Math.max(18, Math.round((count / maxGenre) * 110))}px` }}
-                    />
-                    <span>{genre}</span>
+
+              <div className="stats-row">
+                <div className="stats">
+                  <button type="button" className="stats__item" onClick={() => openStatsModal('reviews')}>
+                    <strong>{profile.booksReviewed || 0}</strong>
+                    <span>Reviews</span>
+                  </button>
+                  <button type="button" className="stats__item" onClick={() => openStatsModal('followers')}>
+                    <strong>{followStats.followers}</strong>
+                    <span>Followers</span>
+                  </button>
+                  <button type="button" className="stats__item" onClick={() => openStatsModal('following')}>
+                    <strong>{followStats.following}</strong>
+                    <span>Following</span>
+                  </button>
+                </div>
+                {!viewingOwnAccount && (
+                  <div className="profile-follow-row">
+                    <button
+                      type="button"
+                      className={`profile-follow-btn${isFollowing ? ' profile-follow-btn--following' : ''}`}
+                      onClick={handleToggleFollow}
+                      disabled={followBusy}
+                      aria-pressed={isFollowing}
+                    >
+                      {followBusy ? 'Please wait…' : isFollowing ? 'Unfollow' : 'Follow'}
+                    </button>
+                    {followError && <p className="save-hint save-hint--error">{followError}</p>}
                   </div>
-                ))}
+                )}
               </div>
+              </div>
+
+          <aside
+            className={`taste-card${aboutPanelHeight ? ' taste-card--matched' : ''}`}
+            style={aboutPanelHeight ? { minHeight: `${aboutPanelHeight}px` } : undefined}
+          >
+            <h3>Top genres</h3>
+            {topGenres.length > 0 ? (
+              <>
+                <div
+                  className="genre-spectrum"
+                  role="img"
+                  aria-label={genreChartLabel}
+                  onMouseLeave={() => setHoveredGenre(null)}
+                >
+                  <div className="genre-spectrum__ribbon" aria-hidden="true">
+                    {topGenres.map((genre, idx) => {
+                      const share = Number(genre.sharePercent) || 0
+                      const flexGrow = Math.max(share, 6)
+                      const isActive = hoveredGenre === genre.name
+                      const isDimmed = hoveredGenre && !isActive
+                      return (
+                        <div
+                          key={genre.name}
+                          className={`genre-spectrum__slot${isActive ? ' is-active' : ''}${isDimmed ? ' is-dimmed' : ''}`}
+                          style={{ flexGrow }}
+                          onMouseEnter={() => setHoveredGenre(genre.name)}
+                        >
+                          <MotionDiv
+                            className={`genre-spectrum__segment genre-tone-${idx}`}
+                            initial={reduceMotion ? false : { scaleX: 0 }}
+                            animate={{ scaleX: 1 }}
+                            transition={reduceMotion
+                              ? { duration: 0 }
+                              : { duration: 0.45, delay: idx * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                          />
+                          <span className="genre-spectrum__hint">
+                            <strong>{genre.name}</strong>
+                            <em>{share}% of taste</em>
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <ul className="genre-rank">
+                    {topGenres.map((genre, idx) => {
+                      const share = Number(genre.sharePercent) || 0
+                      const isActive = hoveredGenre === genre.name
+                      return (
+                        <li key={genre.name}>
+                          <button
+                            type="button"
+                            className={`genre-rank__row${isActive ? ' is-active' : ''}`}
+                            onMouseEnter={() => setHoveredGenre(genre.name)}
+                            onFocus={() => setHoveredGenre(genre.name)}
+                            onBlur={() => setHoveredGenre(null)}
+                            aria-label={`${genre.name}, ${share} percent`}
+                          >
+                            <span className={`genre-rank__swatch genre-tone-${idx}`} aria-hidden="true" />
+                            <span className="genre-rank__meta">
+                              <span className="genre-rank__name">{genre.name}</span>
+                              <span className="genre-rank__track" aria-hidden="true">
+                                <span
+                                  className={`genre-rank__fill genre-tone-${idx}`}
+                                  style={{ width: `${Math.max(8, (share / genreShareTotal) * 100)}%` }}
+                                />
+                              </span>
+                            </span>
+                            <span className="genre-rank__pct">{share}%</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+                <p className="taste-caption">
+                  Based on {tasteProfile?.sampleSize || 0} books on {viewingOwnAccount ? 'your' : 'their'} shelves.
+                </p>
+              </>
             ) : (
               <p className="save-hint">Add books to your shelves to build your chart.</p>
             )}
-            <p className="fingerprint-title">Reading fingerprint</p>
-            <div className="fingerprint">
-              {topMoods.length > 0
-                ? topMoods.map((mood) => <span key={mood}>{mood}</span>)
-                : <span>No mood data yet</span>}
+            <div className="taste-card__fingerprint">
+              <p className="fingerprint-title">Reading fingerprint</p>
+              <div className="fingerprint">
+                <div className="fingerprint__row">
+                  {topMoods.length > 0
+                    ? topMoods.map((mood) => (
+                      <span key={mood.name}>{mood.name} · {mood.count}</span>
+                    ))
+                    : <span>No mood data yet</span>}
+                </div>
+                {(tasteProfile?.dominantPacing || tasteProfile?.averageRating != null) && (
+                  <div className="fingerprint__row fingerprint__row--meta">
+                    {tasteProfile?.dominantPacing && (
+                      <span>Pacing · {tasteProfile.dominantPacing}</span>
+                    )}
+                    {tasteProfile?.averageRating != null && (
+                      <span>Avg rating · {tasteProfile.averageRating}</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
+              </div>
+            </div>
+          </div>
         </section>
 
         {viewingOwnAccount && (

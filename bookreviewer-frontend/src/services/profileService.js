@@ -14,6 +14,14 @@ export const updateAboutMe = async (aboutMe) => {
   await api.put('/users/me/about-me', { aboutMe })
 }
 
+export const updateProfile = async ({ displayName, aboutMe, socialLinks }) => {
+  await api.put('/users/me/profile', {
+    displayName,
+    aboutMe,
+    socialLinks: Array.isArray(socialLinks) ? socialLinks : [],
+  })
+}
+
 export const uploadAvatar = async (file) => {
   const formData = new FormData()
   formData.append('file', file)
@@ -58,4 +66,14 @@ export const getRecommendations = async (limit = 6) => {
     ...book,
     reason: book.recommendationReason || book.reason || 'Recommended for you',
   }))
+}
+
+export const getMyTasteProfile = async () => {
+  const response = await api.get('/users/me/taste-profile')
+  return response.data
+}
+
+export const getTasteProfileByUserId = async (userId) => {
+  const response = await api.get(`/users/${userId}/taste-profile`)
+  return response.data
 }

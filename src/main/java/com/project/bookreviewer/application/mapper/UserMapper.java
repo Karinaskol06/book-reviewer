@@ -10,6 +10,8 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -28,6 +30,8 @@ public abstract class UserMapper {
     public abstract AuthResponse toAuthResponse(User user, String token);
 
     @Mapping(target = "roles", source = "roles", qualifiedByName = "rolesToStringSet")
+    @Mapping(target = "joinedAt", source = "createdAt")
+    @Mapping(target = "socialLinks", source = "socialLinks", qualifiedByName = "copySocialLinks")
     @Mapping(target = "booksReviewed", ignore = true)
     @Mapping(target = "booksWantToRead", ignore = true)
     @Mapping(target = "booksReading", ignore = true)
@@ -42,8 +46,19 @@ public abstract class UserMapper {
 
     @Named("rolesToStringSet")
     protected Set<String> rolesToStringSet(Set<Role> roles) {
+        if (roles == null) {
+            return Set.of();
+        }
         return roles.stream()
                 .map(Enum::name)
                 .collect(Collectors.toSet());
+    }
+
+    @Named("copySocialLinks")
+    protected List<String> copySocialLinks(List<String> socialLinks) {
+        if (socialLinks == null || socialLinks.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(socialLinks);
     }
 }

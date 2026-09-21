@@ -60,9 +60,11 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
     }
 
     private UserEntity mapToEntity(User user) {
-        Set<RoleEntity> roleEntities = user.getRoles().stream()
-                .map(role -> RoleEntity.valueOf(role.name()))
-                .collect(Collectors.toSet());
+        Set<RoleEntity> roleEntities = user.getRoles() == null
+                ? Set.of()
+                : user.getRoles().stream()
+                        .map(role -> RoleEntity.valueOf(role.name()))
+                        .collect(Collectors.toSet());
 
         return UserEntity.builder()
                 .id(user.getId())
@@ -70,7 +72,11 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
                 .email(user.getEmail())
                 .password(user.getPassword())
                 .avatarUrl(user.getAvatarUrl())
+                .displayName(user.getDisplayName())
                 .aboutMe(user.getAboutMe())
+                .socialLinks(user.getSocialLinks() == null
+                        ? new java.util.ArrayList<>()
+                        : new java.util.ArrayList<>(user.getSocialLinks()))
                 .roles(roleEntities)
                 .enabled(user.isEnabled())
                 .createdAt(user.getCreatedAt())
@@ -78,9 +84,11 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
     }
 
     private User mapToDomain(UserEntity entity) {
-        Set<Role> roles = entity.getRoles().stream()
-                .map(roleEntity -> Role.valueOf(roleEntity.name()))
-                .collect(Collectors.toSet());
+        Set<Role> roles = entity.getRoles() == null
+                ? Set.of()
+                : entity.getRoles().stream()
+                        .map(roleEntity -> Role.valueOf(roleEntity.name()))
+                        .collect(Collectors.toSet());
 
         return User.builder()
                 .id(entity.getId())
@@ -88,7 +96,11 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
                 .email(entity.getEmail())
                 .password(entity.getPassword())
                 .avatarUrl(entity.getAvatarUrl())
+                .displayName(entity.getDisplayName())
                 .aboutMe(entity.getAboutMe())
+                .socialLinks(entity.getSocialLinks() == null
+                        ? List.of()
+                        : List.copyOf(entity.getSocialLinks()))
                 .roles(roles)
                 .enabled(entity.isEnabled())
                 .createdAt(entity.getCreatedAt())

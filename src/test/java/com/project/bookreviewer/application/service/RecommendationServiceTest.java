@@ -43,6 +43,8 @@ class RecommendationServiceTest {
     private ReviewRepositoryPort reviewRepository;
     @Mock
     private BookMapper bookMapper;
+    @Mock
+    private TasteProfileService tasteProfileService;
 
     @InjectMocks
     private RecommendationService recommendationService;
@@ -82,10 +84,7 @@ class RecommendationServiceTest {
         BookResponse candidateResponse = BookResponse.builder().id(6L).title("Book to rec").author("Author")
                 .genres(Set.of("Fantasy")).build();
 
-        when(bookStatusRepository.findByUserId(1L)).thenReturn(List.of(
-                UserBookStatus.builder().userId(1L).bookId(1L).build()
-        ));
-        when(bookRepository.findById(1L)).thenReturn(Optional.of(shelfBook));
+        when(tasteProfileService.resolveTasteGenreLabels(1L, 3)).thenReturn(List.of("Fantasy"));
         when(bookRepository.findByGenre(eq("Fantasy"), eq(0), anyInt()))
                 .thenReturn(List.of(shelfBook, candidate));
         when(bookMapper.toResponse(candidate)).thenReturn(candidateResponse);
@@ -100,15 +99,10 @@ class RecommendationServiceTest {
     @Test
     void postgresFallback_usesReviewGenresWhenShelfHasNoGenres() {
         Set<Long> excluded = Set.of(9L);
-        Book reviewed = Book.builder().id(9L).title("Test title").genres(Set.of("Mystery")).build();
         Book candidate = Book.builder().id(90L).title("Another title").genres(Set.of("Mystery")).build();
         BookResponse response = BookResponse.builder().id(90L).title("Another title").build();
 
-        when(bookStatusRepository.findByUserId(1L)).thenReturn(List.of());
-        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class))).thenReturn(
-                new PageImpl<>(List.of(Review.builder().userId(1L).bookId(9L).rating(5).build()))
-        );
-        when(bookRepository.findById(9L)).thenReturn(Optional.of(reviewed));
+        when(tasteProfileService.resolveTasteGenreLabels(1L, 3)).thenReturn(List.of("Mystery"));
         when(bookRepository.findByGenre(eq("Mystery"), eq(0), anyInt())).thenReturn(List.of(candidate));
         when(bookMapper.toResponse(candidate)).thenReturn(response);
 
@@ -125,8 +119,7 @@ class RecommendationServiceTest {
         Book trending = Book.builder().id(70L).title("Hot").author("B").build();
         BookResponse trendingResponse = BookResponse.builder().id(70L).title("Hot").build();
 
-        when(bookStatusRepository.findByUserId(1L)).thenReturn(List.of());
-        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+        when(tasteProfileService.resolveTasteGenreLabels(1L, 3)).thenReturn(List.of());
         when(bookRepository.findTrending(6, null)).thenReturn(List.of(trending));
         when(bookMapper.toResponse(trending)).thenReturn(trendingResponse);
 
@@ -143,6 +136,7 @@ class RecommendationServiceTest {
 
         when(bookStatusRepository.findByUserId(1L)).thenReturn(List.of());
         when(reviewRepository.findByUserId(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
+        when(tasteProfileService.resolveTasteGenreLabels(1L, 3)).thenReturn(List.of());
         when(elasticsearchOperations.search(any(Query.class), eq(ReviewDocument.class)))
                 .thenThrow(new RuntimeException("ES down"));
         when(bookRepository.findTrending(6, null)).thenReturn(List.of(trending));

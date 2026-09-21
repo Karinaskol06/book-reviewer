@@ -48,6 +48,7 @@ public class RecommendationService {
     private final UserBookStatusRepositoryPort statusRepository;
     private final ReviewRepositoryPort reviewRepository;
     private final BookMapper bookMapper;
+    private final TasteProfileService tasteProfileService;
 
     @Transactional(readOnly = true)
     public List<BookResponse> getRecommendations(Long userId, int limit) {
@@ -197,7 +198,7 @@ public class RecommendationService {
     }
 
     List<BookResponse> fromPostgresFallback(Long userId, int limit, Set<Long> excluded) {
-        List<String> tasteGenres = resolveTasteGenres(userId);
+        List<String> tasteGenres = tasteProfileService.resolveTasteGenreLabels(userId, 3);
         LinkedHashMap<Long, BookResponse> assembled = new LinkedHashMap<>();
 
         for (String genre : tasteGenres) {
@@ -241,49 +242,5 @@ public class RecommendationService {
         }
 
         return new ArrayList<>(assembled.values());
-    }
-
-    private List<String> resolveTasteGenres(Long userId) {
-        Map<String, Integer> shelfGenreCounts = new HashMap<>();
-        for (UserBookStatus status : statusRepository.findByUserId(userId)) {
-            bookRepository.findById(status.getBookId()).ifPresent(book -> countGenres(book, shelfGenreCounts));
-        }
-        if (!shelfGenreCounts.isEmpty()) {
-            return topGenres(shelfGenreCounts, 3);
-        }
-
-        Map<String, Integer> reviewGenreCounts = new HashMap<>();
-        List<Review> reviews = reviewRepository.findByUserId(userId, PageRequest.of(0, REVIEW_PAGE_SIZE)).getContent();
-        for (Review review : reviews) {
-            if (review.getRating() == null || review.getRating() < HIGH_RATING_THRESHOLD) {
-                continue;
-            }
-            bookRepository.findById(review.getBookId()).ifPresent(book -> countGenres(book, reviewGenreCounts));
-        }
-        if (!reviewGenreCounts.isEmpty()) {
-            return topGenres(reviewGenreCounts, 3);
-        }
-        return List.of();
-    }
-
-    private void countGenres(Book book, Map<String, Integer> counts) {
-        if (book.getGenres() == null) {
-            return;
-        }
-        for (String genre : book.getGenres()) {
-            if (genre == null || genre.isBlank()) {
-                continue;
-            }
-            counts.merge(genre, 1, Integer::sum);
-        }
-    }
-
-    private List<String> topGenres(Map<String, Integer> counts, int limit) {
-        return counts.entrySet().stream()
-                .sorted(Comparator.<Map.Entry<String, Integer>>comparingInt(Map.Entry::getValue).reversed()
-                        .thenComparing(Map.Entry::getKey))
-                .limit(limit)
-                .map(Map.Entry::getKey)
-                .toList();
     }
 }
