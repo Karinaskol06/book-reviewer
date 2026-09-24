@@ -5,12 +5,14 @@ import com.project.bookreviewer.application.dto.response.BookSummaryDto;
 import com.project.bookreviewer.application.dto.response.ReviewResponse;
 import com.project.bookreviewer.application.dto.response.ReviewSnippetDto;
 import com.project.bookreviewer.application.mapper.ActivityMapper;
+import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.ActivityEvent;
 import com.project.bookreviewer.domain.model.ActivityType;
 import com.project.bookreviewer.domain.port.outbound.ActivityEventRepositoryPort;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FeedService {
@@ -67,19 +70,46 @@ public class FeedService {
         }
 
         for (Long actorId : actorIds) {
-            actorsById.put(actorId, userService.buildReviewUserDto(actorId));
+            ReviewResponse.ReviewUserDto actor = loadActorSafely(actorId);
+            if (actor != null) {
+                actorsById.put(actorId, actor);
+            }
         }
         for (Long targetUserId : targetUserIds) {
-            actorsById.computeIfAbsent(targetUserId, userService::buildReviewUserDto);
+            actorsById.computeIfAbsent(targetUserId, this::loadActorSafely);
         }
         for (Long bookId : bookIds) {
-            booksById.put(bookId, bookService.getBookSummary(bookId));
+            BookSummaryDto book = loadBookSafely(bookId);
+            if (book != null) {
+                booksById.put(bookId, book);
+            }
         }
         for (Long reviewId : reviewIds) {
-            snippetsById.put(reviewId, reviewService.getReviewSnippet(reviewId));
+            ReviewSnippetDto snippet = reviewService.getReviewSnippet(reviewId);
+            if (snippet != null) {
+                snippetsById.put(reviewId, snippet);
+            }
         }
 
         return events.map(event -> enrichActivity(event, actorsById, booksById, snippetsById));
+    }
+
+    private ReviewResponse.ReviewUserDto loadActorSafely(Long userId) {
+        try {
+            return userService.buildReviewUserDto(userId);
+        } catch (ResourceNotFoundException ex) {
+            log.debug("Skipping missing feed actor userId={}", userId);
+            return null;
+        }
+    }
+
+    private BookSummaryDto loadBookSafely(Long bookId) {
+        try {
+            return bookService.getBookSummary(bookId);
+        } catch (ResourceNotFoundException ex) {
+            log.debug("Skipping missing feed book bookId={}", bookId);
+            return null;
+        }
     }
 
     private ActivityFeedItemDto enrichActivity(ActivityEvent event) {
