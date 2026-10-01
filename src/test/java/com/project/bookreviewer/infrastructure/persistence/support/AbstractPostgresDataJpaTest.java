@@ -25,6 +25,7 @@ public abstract class AbstractPostgresDataJpaTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.flyway.enabled", () -> "false");
         registry.add("spring.jpa.properties.hibernate.dialect",
                 () -> "org.hibernate.dialect.PostgreSQLDialect");
     }

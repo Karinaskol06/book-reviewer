@@ -64,6 +64,10 @@ public class S3ObjectStorageAdapter implements ObjectStoragePort {
         if (storageKey == null || storageKey.isBlank()) {
             return null;
         }
+        String key = storageKey.trim();
+        if (key.startsWith("http://") || key.startsWith("https://") || key.startsWith("/")) {
+            return key;
+        }
         String base = properties.getPublicBaseUrl();
         if (base == null || base.isBlank()) {
             throw new IllegalStateException(
@@ -72,7 +76,7 @@ public class S3ObjectStorageAdapter implements ObjectStoragePort {
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base + "/" + storageKey.trim();
+        return base + "/" + key;
     }
 
     private String requiredBucket() {

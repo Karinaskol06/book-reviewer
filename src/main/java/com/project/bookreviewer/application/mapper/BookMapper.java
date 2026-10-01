@@ -38,10 +38,7 @@ public abstract class BookMapper {
         if (value.startsWith("data:")) {
             return null;
         }
-        if (value.startsWith("http://") || value.startsWith("https://")) {
-            return value;
-        }
-        if (value.startsWith("/uploads-book-reviewer/")) {
+        if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/")) {
             return value;
         }
         return objectStoragePort.toPublicUrl(value);

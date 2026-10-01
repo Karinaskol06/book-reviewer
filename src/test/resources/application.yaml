@@ -1,0 +1,4 @@
+# Tests own schema via Hibernate create-drop / H2; do not run Flyway migrations.
+spring:
+  flyway:
+    enabled: false

@@ -59,6 +59,7 @@ class BookSearchElasticsearchIT {
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.flyway.enabled", () -> "false");
         registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.H2Dialect");
         registry.add("jwt.secret", () -> "0123456789abcdef0123456789abcdef");
         registry.add("jwt.expiration", () -> "3600000");
@@ -75,6 +76,7 @@ class BookSearchElasticsearchIT {
 
     @BeforeEach
     void setUp() {
+        // API that manages indexes in elasticsearch
         IndexOperations indexOps = elasticsearchOperations.indexOps(BookDocument.class);
         if (indexOps.exists()) {
             indexOps.delete();
@@ -94,6 +96,7 @@ class BookSearchElasticsearchIT {
                 .publicationYear(1969)
                 .build();
         elasticsearchOperations.save(indexed);
+        // Flush recent writes into the searchable index now
         elasticsearchOperations.indexOps(BookDocument.class).refresh();
 
         Book domainBook = Book.builder()

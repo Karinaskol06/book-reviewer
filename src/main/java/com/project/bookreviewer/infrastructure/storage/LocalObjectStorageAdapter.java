@@ -81,13 +81,18 @@ public class LocalObjectStorageAdapter implements ObjectStoragePort {
         if (storageKey == null || storageKey.isBlank()) {
             return null;
         }
+        String key = storageKey.trim();
+        // Absolute URLs and classpath/web paths (e.g. /images/...) are already public.
+        if (key.startsWith("http://") || key.startsWith("https://") || key.startsWith("/")) {
+            return key;
+        }
         // Get prefix from properties
         String prefix = properties.getLocal().getPublicPrefix();
         // Avoid double slashes
         if (prefix.endsWith("/")) {
             prefix = prefix.substring(0, prefix.length() - 1);
         }
-        return prefix + "/" + storageKey.trim();
+        return prefix + "/" + key;
     }
 
     private void validateImage(String contentType) {

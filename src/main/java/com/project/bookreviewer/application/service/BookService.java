@@ -157,11 +157,8 @@ public class BookService implements BookUseCase {
         if (value.startsWith("data:")) {
             return null;
         }
-        // Check if it is not already a URL
-        if (value.startsWith("http:") || value.startsWith("https:")) {
-            return value;
-        }
-        if (value.startsWith("/uploads-book-reviewer/")) {
+        // Absolute URLs and web/classpath paths (e.g. /images/...) are already public.
+        if (value.startsWith("http:") || value.startsWith("https:") || value.startsWith("/")) {
             return value;
         }
 

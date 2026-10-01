@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/books/*").authenticated()
                         .requestMatchers("/api/home/**", "/api/books/**", "/api/genres").permitAll()
                         .requestMatchers("/uploads-book-reviewer/**").permitAll()
+                        .requestMatchers("/images/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated()
                 )

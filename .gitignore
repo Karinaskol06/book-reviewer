@@ -5,6 +5,8 @@ target/
 !**/src/test/**/target/
 .env
 .pg-recover/
+backups/
+*.sql.bak
 ### STS ###
 .apt_generated
 .classpath

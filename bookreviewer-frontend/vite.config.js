@@ -17,6 +17,10 @@ export default defineConfig({
         target: API_PROXY_TARGET,
         changeOrigin: true,
       },
+      '/images': {
+        target: API_PROXY_TARGET,
+        changeOrigin: true,
+      },
     },
   },
 })
