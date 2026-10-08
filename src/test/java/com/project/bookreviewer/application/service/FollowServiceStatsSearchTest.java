@@ -7,7 +7,7 @@ import com.project.bookreviewer.domain.port.outbound.ActivityEventRepositoryPort
 import com.project.bookreviewer.domain.port.outbound.FollowRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
-import com.project.bookreviewer.infrastructure.persistence.config.FeedBackfillProperties;
+import com.project.bookreviewer.application.config.FeedBackfillProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,5 +1,6 @@
 package com.project.bookreviewer.infrastructure.security;
 
+import com.project.bookreviewer.domain.port.outbound.TokenPort;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -14,8 +15,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * JWT adapter for {@link TokenPort}. Also used by the security filter for parse/validate.
+ */
 @Service
-public class JwtService {
+public class JwtService implements TokenPort {
 
     @Value("${jwt.secret}")
     private String secret;
@@ -58,9 +62,13 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
 
+    @Override
+    public String generateToken(String subject) {
+        return createToken(new HashMap<>(), subject);
+    }
+
     public String generateToken(UserDetails userDetails) {
-        Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername());
+        return generateToken(userDetails.getUsername());
     }
 
     private String createToken(Map<String, Object> claims, String subject) {

@@ -8,8 +8,6 @@ import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
-import com.project.bookreviewer.infrastructure.security.SecurityUtils;
-import com.project.bookreviewer.infrastructure.storage.StorageProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,12 +41,6 @@ class BookServiceUpdateTest {
     private ApplicationEventPublisher applicationEventPublisher;
     @Mock
     private ObjectStoragePort objectStoragePort;
-    @Mock
-    private StorageProperties storageProperties;
-    @Mock
-    private StorageProperties.Local localProperties;
-    @Mock
-    private SecurityUtils securityUtils;
 
     @InjectMocks
     private BookService bookService;
@@ -57,8 +49,7 @@ class BookServiceUpdateTest {
 
     @BeforeEach
     void setUp() {
-        when(storageProperties.getLocal()).thenReturn(localProperties);
-        when(localProperties.getPublicPrefix()).thenReturn("/uploads-book-reviewer");
+        when(objectStoragePort.toStorageReference(any())).thenAnswer(inv -> inv.getArgument(0));
 
         existing = Book.builder()
                 .id(5L)

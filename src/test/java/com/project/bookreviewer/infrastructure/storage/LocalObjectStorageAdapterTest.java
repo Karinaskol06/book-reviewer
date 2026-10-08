@@ -58,6 +58,25 @@ class LocalObjectStorageAdapterTest {
         )).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void toStorageReference_stripsPublicPrefix() {
+        LocalObjectStorageAdapter adapter = adapter();
+
+        assertThat(adapter.toStorageReference("/uploads-book-reviewer/covers/a.jpg"))
+                .isEqualTo("covers/a.jpg");
+        assertThat(adapter.toStorageReference("covers/a.jpg")).isEqualTo("covers/a.jpg");
+        assertThat(adapter.toStorageReference("https://cdn.example.com/covers/a.jpg"))
+                .isEqualTo("https://cdn.example.com/covers/a.jpg");
+    }
+
+    @Test
+    void toStorageReference_rejectsDataUrl() {
+        LocalObjectStorageAdapter adapter = adapter();
+
+        assertThatThrownBy(() -> adapter.toStorageReference("data:image/png;base64,abc"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private LocalObjectStorageAdapter adapter() {
         StorageProperties properties = new StorageProperties();
         properties.setType("local");

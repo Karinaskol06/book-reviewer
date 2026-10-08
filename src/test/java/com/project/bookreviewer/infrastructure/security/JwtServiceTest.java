@@ -36,6 +36,13 @@ class JwtServiceTest {
     }
 
     @Test
+    void generateToken_subjectOverload_matchesTokenPortContract() {
+        String token = jwtService.generateToken("alice");
+
+        assertThat(jwtService.extractUsername(token)).isEqualTo("alice");
+    }
+
+    @Test
     void validateToken_expiredToken_isRejected() {
         ReflectionTestUtils.setField(jwtService, "expiration", -1_000L);
         UserDetails user = User.withUsername("alice").password("n/a").authorities(List.of()).build();

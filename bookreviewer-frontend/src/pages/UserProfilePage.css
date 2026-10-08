@@ -53,6 +53,9 @@
   width: 240px;
   height: 240px;
   flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid rgba(2, 40, 89, 0.08);
 }
 
 .avatar-upload--readonly {
@@ -60,13 +63,14 @@
 }
 
 .avatar-upload img {
-  width: 240px;
-  height: 240px;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 50%;
+  border-radius: 0;
   display: block;
   margin: 0;
-  border: 2px solid rgba(2, 40, 89, 0.08);
+  border: none;
+  transform: scale(1);
 }
 
 .avatar-upload span {

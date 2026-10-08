@@ -1,4 +1,4 @@
-package com.project.bookreviewer.infrastructure.persistence.config;
+package com.project.bookreviewer.application.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

@@ -1,38 +1,28 @@
 package com.project.bookreviewer.application.service;
 
-import co.elastic.clients.elasticsearch._types.FieldValue;
-import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
-import co.elastic.clients.json.JsonData;
 import com.project.bookreviewer.application.dto.response.BookResponse;
 import com.project.bookreviewer.application.mapper.BookMapper;
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.UserBookStatus;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.BookSearchPort;
+import com.project.bookreviewer.domain.port.outbound.BookSearchPort.BookRecommendationHit;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
-import com.project.bookreviewer.infrastructure.elasticsearch.document.BookDocument;
-import com.project.bookreviewer.infrastructure.elasticsearch.document.ReviewDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.elasticsearch.client.elc.NativeQuery;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,10 +30,9 @@ import java.util.stream.Collectors;
 public class RecommendationService {
     private static final int MAX_LIMIT = 20;
     private static final int MIN_LIMIT = 1;
-    private static final int HIGH_RATING_THRESHOLD = 4;
     private static final int REVIEW_PAGE_SIZE = 500;
 
-    private final ElasticsearchOperations elasticsearchOperations;
+    private final BookSearchPort bookSearchPort;
     private final BookRepositoryPort bookRepository;
     private final UserBookStatusRepositoryPort statusRepository;
     private final ReviewRepositoryPort reviewRepository;
@@ -55,9 +44,13 @@ public class RecommendationService {
         int clamped = clampLimit(limit);
         Set<Long> excluded = buildExcludedBookIds(userId);
 
-        List<BookResponse> fromEs = fromElasticsearch(userId, clamped, excluded);
-        if (!fromEs.isEmpty()) {
-            return fromEs;
+        Optional<List<BookRecommendationHit>> fromSearch =
+                bookSearchPort.findRecommendations(userId, excluded, clamped);
+        if (fromSearch.isPresent() && !fromSearch.get().isEmpty()) {
+            List<BookResponse> mapped = mapHits(fromSearch.get(), excluded, clamped);
+            if (!mapped.isEmpty()) {
+                return mapped;
+            }
         }
         return fromPostgresFallback(userId, clamped, excluded);
     }
@@ -82,119 +75,33 @@ public class RecommendationService {
         return excluded;
     }
 
-    private List<BookResponse> fromElasticsearch(Long userId, int limit, Set<Long> excluded) {
-        try {
-            NativeQuery userRatingsQuery = NativeQuery.builder()
-                    .withQuery(q -> q.bool(b -> b
-                            .must(m -> m.term(t -> t.field("userId").value(userId)))
-                            .must(m -> m.range(r -> r.field("rating").gte(JsonData.of(HIGH_RATING_THRESHOLD))))
-                    ))
-                    .withMaxResults(10)
-                    .build();
-            SearchHits<ReviewDocument> userReviews =
-                    elasticsearchOperations.search(userRatingsQuery, ReviewDocument.class);
-
-            if (userReviews.isEmpty()) {
-                return List.of();
+    private List<BookResponse> mapHits(
+            List<BookRecommendationHit> hits,
+            Set<Long> excluded,
+            int limit
+    ) {
+        List<BookResponse> results = new ArrayList<>();
+        for (BookRecommendationHit hit : hits) {
+            if (hit == null || hit.bookId() == null || excluded.contains(hit.bookId())) {
+                continue;
             }
-
-            Set<Long> likedBookIds = userReviews.stream()
-                    .map(hit -> hit.getContent().getBookId())
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-
-            List<BookDocument> likedBooks = new ArrayList<>();
-            for (Long bookId : likedBookIds) {
-                BookDocument doc = elasticsearchOperations.get(bookId.toString(), BookDocument.class);
-                if (doc != null) {
-                    likedBooks.add(doc);
-                }
+            Book book = bookRepository.findById(hit.bookId()).orElse(null);
+            if (book == null) {
+                continue;
             }
-
-            Set<String> likedGenres = likedBooks.stream()
-                    .filter(book -> book.getGenres() != null)
-                    .flatMap(book -> book.getGenres().stream())
-                    .collect(Collectors.toSet());
-            Set<String> likedPacing = likedBooks.stream()
-                    .map(BookDocument::getDominantPacing)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-
-            if (likedGenres.isEmpty() && likedPacing.isEmpty()) {
-                return List.of();
+            BookResponse resp = bookMapper.toResponse(book);
+            if (resp == null) {
+                continue;
             }
-
-            BoolQuery.Builder recBool = new BoolQuery.Builder();
-            if (!likedGenres.isEmpty()) {
-                recBool.should(s -> s.terms(t -> t
-                        .field("genres")
-                        .terms(terms -> terms.value(
-                                likedGenres.stream().map(FieldValue::of).toList()
-                        ))
-                ));
+            if (hit.recommendationReason() != null && !hit.recommendationReason().isBlank()) {
+                resp.setRecommendationReason(hit.recommendationReason());
             }
-            if (!likedPacing.isEmpty()) {
-                recBool.should(s -> s.terms(t -> t
-                        .field("dominantPacing")
-                        .terms(terms -> terms.value(
-                                likedPacing.stream().map(FieldValue::of).toList()
-                        ))
-                ));
+            results.add(resp);
+            if (results.size() >= limit) {
+                break;
             }
-
-            Set<Long> mustNotIds = new HashSet<>(excluded);
-            mustNotIds.addAll(likedBookIds);
-            if (!mustNotIds.isEmpty()) {
-                recBool.mustNot(m -> m.terms(t -> t
-                        .field("id")
-                        .terms(terms -> terms.value(
-                                mustNotIds.stream().map(FieldValue::of).toList()
-                        ))
-                ));
-            }
-
-            NativeQuery recQuery = NativeQuery.builder()
-                    .withQuery(q -> q.bool(recBool.build()))
-                    .withMaxResults(limit)
-                    .build();
-
-            SearchHits<BookDocument> recHits =
-                    elasticsearchOperations.search(recQuery, BookDocument.class);
-
-            List<BookResponse> results = new ArrayList<>();
-            for (SearchHit<BookDocument> hit : recHits) {
-                BookDocument doc = hit.getContent();
-                if (doc == null || doc.getId() == null || excluded.contains(doc.getId())) {
-                    continue;
-                }
-                Book book = bookRepository.findById(doc.getId()).orElse(null);
-                if (book == null) {
-                    continue;
-                }
-                BookResponse resp = bookMapper.toResponse(book);
-                if (resp == null) {
-                    continue;
-                }
-                List<String> reasons = new ArrayList<>();
-                if (doc.getGenres() != null && likedGenres.stream().anyMatch(g -> doc.getGenres().contains(g))) {
-                    reasons.add("Similar genres");
-                }
-                if (doc.getDominantPacing() != null && likedPacing.contains(doc.getDominantPacing())) {
-                    reasons.add("Similar pacing");
-                }
-                if (!reasons.isEmpty()) {
-                    resp.setRecommendationReason(String.join(" and ", reasons));
-                }
-                results.add(resp);
-                if (results.size() >= limit) {
-                    break;
-                }
-            }
-            return results;
-        } catch (Exception e) {
-            log.error("Elasticsearch recommendations failed for userId={}", userId, e);
-            return List.of();
         }
+        return results;
     }
 
     List<BookResponse> fromPostgresFallback(Long userId, int limit, Set<Long> excluded) {

@@ -4,8 +4,8 @@ import com.project.bookreviewer.domain.exception.AuthenticationException;
 import com.project.bookreviewer.domain.exception.UserAlreadyExistsException;
 import com.project.bookreviewer.domain.model.Role;
 import com.project.bookreviewer.domain.model.User;
+import com.project.bookreviewer.domain.port.outbound.TokenPort;
 import com.project.bookreviewer.domain.port.outbound.UserRepositoryPort;
-import com.project.bookreviewer.infrastructure.security.JwtService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +39,7 @@ class AuthServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
-    private JwtService jwtService;
+    private TokenPort tokenPort;
     @Mock
     private AuthenticationManager authenticationManager;
 
@@ -114,13 +114,14 @@ class AuthServiceTest {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(authentication);
         when(authentication.getPrincipal()).thenReturn(principal);
-        when(jwtService.generateToken(principal)).thenReturn("jwt-token");
+        when(principal.getUsername()).thenReturn("alice");
+        when(tokenPort.generateToken("alice")).thenReturn("jwt-token");
 
         String token = authService.authenticate("alice", "secret");
 
         assertThat(token).isEqualTo("jwt-token");
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(authentication);
-        verify(jwtService).generateToken(principal);
+        verify(tokenPort).generateToken("alice");
     }
 
     @Test
@@ -133,6 +134,6 @@ class AuthServiceTest {
                 .hasMessageContaining("Invalid username or password");
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        verify(jwtService, never()).generateToken(any());
+        verify(tokenPort, never()).generateToken(any());
     }
 }

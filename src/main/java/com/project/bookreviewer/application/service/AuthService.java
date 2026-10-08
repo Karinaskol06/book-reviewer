@@ -5,8 +5,8 @@ import com.project.bookreviewer.domain.exception.UserAlreadyExistsException;
 import com.project.bookreviewer.domain.model.Role;
 import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.domain.port.inbound.AuthUseCase;
+import com.project.bookreviewer.domain.port.outbound.TokenPort;
 import com.project.bookreviewer.domain.port.outbound.UserRepositoryPort;
-import com.project.bookreviewer.infrastructure.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,7 +24,7 @@ import java.util.Set;
 public class AuthService implements AuthUseCase {
     private final UserRepositoryPort userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+    private final TokenPort tokenPort;
     private final AuthenticationManager authenticationManager;
 
     @Override
@@ -56,7 +56,7 @@ public class AuthService implements AuthUseCase {
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-            return jwtService.generateToken(userDetails);
+            return tokenPort.generateToken(userDetails.getUsername());
         } catch (org.springframework.security.core.AuthenticationException e) {
             throw new AuthenticationException("Invalid username or password");
         }

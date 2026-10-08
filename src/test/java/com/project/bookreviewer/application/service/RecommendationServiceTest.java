@@ -6,9 +6,9 @@ import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.UserBookStatus;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.BookSearchPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
-import com.project.bookreviewer.infrastructure.elasticsearch.document.ReviewDocument;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,8 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.query.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,7 +32,7 @@ import static org.mockito.Mockito.when;
 class RecommendationServiceTest {
 
     @Mock
-    private ElasticsearchOperations elasticsearchOperations;
+    private BookSearchPort bookSearchPort;
     @Mock
     private BookRepositoryPort bookRepository;
     @Mock
@@ -51,7 +49,6 @@ class RecommendationServiceTest {
 
     @Test
     void clampLimit_capsAtTwentyAndFloorsAtOne() {
-        // If sth asks for 100 recs, service only allows for max 20
         assertThat(recommendationService.clampLimit(100)).isEqualTo(20);
         assertThat(recommendationService.clampLimit(0)).isEqualTo(1);
         assertThat(recommendationService.clampLimit(6)).isEqualTo(6);
@@ -130,15 +127,15 @@ class RecommendationServiceTest {
     }
 
     @Test
-    void getRecommendations_fallsBackWhenElasticsearchFails() {
+    void getRecommendations_fallsBackWhenSearchPortEmpty() {
         Book trending = Book.builder().id(70L).title("Hot").build();
         BookResponse trendingResponse = BookResponse.builder().id(70L).title("Hot").build();
 
         when(bookStatusRepository.findByUserId(1L)).thenReturn(List.of());
         when(reviewRepository.findByUserId(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
         when(tasteProfileService.resolveTasteGenreLabels(1L, 3)).thenReturn(List.of());
-        when(elasticsearchOperations.search(any(Query.class), eq(ReviewDocument.class)))
-                .thenThrow(new RuntimeException("ES down"));
+        when(bookSearchPort.findRecommendations(eq(1L), any(), eq(6)))
+                .thenReturn(Optional.empty());
         when(bookRepository.findTrending(6, null)).thenReturn(List.of(trending));
         when(bookMapper.toResponse(trending)).thenReturn(trendingResponse);
 

@@ -17,4 +17,11 @@ public interface ObjectStoragePort {
 
     /** Builds a browser-ready URL from a storage key. */
     String toPublicUrl(String storageKey);
+
+    /**
+     * Converts a client-supplied media URL or key into the value to persist.
+     * Absolute {@code http(s)} URLs are kept; public-prefix URLs become storage keys;
+     * {@code data:} URLs are rejected.
+     */
+    String toStorageReference(String mediaUrl);
 }

@@ -27,4 +27,25 @@ class S3ObjectStorageAdapterTest {
         assertThatThrownBy(() -> adapter.toPublicUrl("avatars/x.png"))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void toStorageReference_stripsConfiguredPublicBase() {
+        StorageProperties properties = new StorageProperties();
+        properties.setPublicBaseUrl("https://cdn.example.com/");
+        S3ObjectStorageAdapter adapter = new S3ObjectStorageAdapter(mock(S3Client.class), properties);
+
+        assertThat(adapter.toStorageReference("https://cdn.example.com/covers/a.jpg"))
+                .isEqualTo("covers/a.jpg");
+        assertThat(adapter.toStorageReference("covers/a.jpg")).isEqualTo("covers/a.jpg");
+        assertThat(adapter.toStorageReference("https://other.example.com/covers/a.jpg"))
+                .isEqualTo("https://other.example.com/covers/a.jpg");
+    }
+
+    @Test
+    void toStorageReference_rejectsDataUrl() {
+        S3ObjectStorageAdapter adapter = new S3ObjectStorageAdapter(mock(S3Client.class), new StorageProperties());
+
+        assertThatThrownBy(() -> adapter.toStorageReference("data:image/png;base64,abc"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

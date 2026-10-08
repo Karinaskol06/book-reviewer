@@ -87,12 +87,39 @@ public class LocalObjectStorageAdapter implements ObjectStoragePort {
             return key;
         }
         // Get prefix from properties
-        String prefix = properties.getLocal().getPublicPrefix();
-        // Avoid double slashes
-        if (prefix.endsWith("/")) {
-            prefix = prefix.substring(0, prefix.length() - 1);
-        }
+        String prefix = normalizedPublicPrefix();
         return prefix + "/" + key;
+    }
+
+    @Override
+    public String toStorageReference(String mediaUrl) {
+        if (mediaUrl == null || mediaUrl.isEmpty()) {
+            return null;
+        }
+        String value = mediaUrl.trim();
+        if (value.startsWith("data:")) {
+            throw new IllegalArgumentException("Upload a new file instead");
+        }
+        if (value.startsWith("http:") || value.startsWith("https:")) {
+            return value;
+        }
+        String prefix = normalizedPublicPrefix();
+        if (value.startsWith(prefix + "/")) {
+            return value.substring(prefix.length() + 1);
+        }
+        return value;
+    }
+
+    private String normalizedPublicPrefix() {
+        String prefix = properties.getLocal().getPublicPrefix();
+        if (prefix == null || prefix.isBlank()) {
+            return "/uploads-book-reviewer";
+        }
+        String normalized = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+        return normalized;
     }
 
     private void validateImage(String contentType) {

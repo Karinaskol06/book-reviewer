@@ -11,8 +11,6 @@ import com.project.bookreviewer.domain.port.inbound.BookUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
-import com.project.bookreviewer.infrastructure.security.SecurityUtils;
-import com.project.bookreviewer.infrastructure.storage.StorageProperties;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,8 +34,6 @@ public class BookService implements BookUseCase {
     private final ReviewRepositoryPort reviewRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ObjectStoragePort objectStoragePort;
-    private final StorageProperties storageProperties;
-    private final SecurityUtils securityUtils;
 
     @Override
     @Transactional
@@ -50,7 +46,7 @@ public class BookService implements BookUseCase {
                 .normalizedTitle(book.getNormalizedTitle())
                 .normalizedAuthor(book.getNormalizedAuthor())
                 .description(book.getDescription())
-                .coverUrl(normalizeCoverForStorage(book.getCoverUrl()))
+                .coverUrl(objectStoragePort.toStorageReference(book.getCoverUrl()))
                 .publicationYear(book.getPublicationYear())
                 .genres(normalizeGenres(book.getGenres()))
                 .createdAt(book.getCreatedAt())
@@ -106,7 +102,7 @@ public class BookService implements BookUseCase {
                 .normalizedTitle(updates.getNormalizedTitle())
                 .normalizedAuthor(updates.getNormalizedAuthor())
                 .description(updates.getDescription())
-                .coverUrl(normalizeCoverForStorage(updates.getCoverUrl()))
+                .coverUrl(objectStoragePort.toStorageReference(updates.getCoverUrl()))
                 .publicationYear(updates.getPublicationYear())
                 .genres(normalizeGenres(updates.getGenres()))
                 .createdAt(existing.getCreatedAt())
@@ -157,38 +153,7 @@ public class BookService implements BookUseCase {
         if (value.startsWith("data:")) {
             return null;
         }
-        // Absolute URLs and web/classpath paths (e.g. /images/...) are already public.
-        if (value.startsWith("http:") || value.startsWith("https:") || value.startsWith("/")) {
-            return value;
-        }
-
-        return objectStoragePort.toPublicUrl(storedReference);
-    }
-
-    String normalizeCoverForStorage(String coverUrl) {
-        if (coverUrl == null || coverUrl.isEmpty()) {
-            return null;
-        }
-        String value = coverUrl.trim();
-        if (value.startsWith("data:")) {
-            throw new IllegalArgumentException("Upload a new file instead");
-        }
-
-        if (value.startsWith("http:") || value.startsWith("https:")) {
-            return value;
-        }
-        String prefix = storageProperties.getLocal().getPublicPrefix();
-        if (prefix != null && !prefix.isBlank()) {
-            String normalizedPrefix = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
-            if (!normalizedPrefix.startsWith("/")) {
-                normalizedPrefix = "/" + normalizedPrefix;
-            }
-            if (value.startsWith(normalizedPrefix + "/")) {
-                return value.substring(normalizedPrefix.length() + 1);
-            }
-        }
-        
-        return value;
+        return objectStoragePort.toPublicUrl(value);
     }
 
     @Override
@@ -241,10 +206,9 @@ public class BookService implements BookUseCase {
         applicationEventPublisher.publishEvent(new BookUpdatedEvent(this, saved));
     }
 
-    // Home page specific
+    // Home page specific — excludeUserId comes from the driving adapter (controller).
     @Transactional(readOnly = true)
-    public List<Book> getTrendingBooks(int limit) {
-        Long excludeUserId = securityUtils.getCurrentUserIdOrNull();
+    public List<Book> getTrendingBooks(int limit, Long excludeUserId) {
         return bookRepository.findTrending(limit, excludeUserId);
     }
 

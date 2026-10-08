@@ -68,15 +68,38 @@ public class S3ObjectStorageAdapter implements ObjectStoragePort {
         if (key.startsWith("http://") || key.startsWith("https://") || key.startsWith("/")) {
             return key;
         }
+        return normalizedPublicBase() + "/" + key;
+    }
+
+    @Override
+    public String toStorageReference(String mediaUrl) {
+        if (mediaUrl == null || mediaUrl.isEmpty()) {
+            return null;
+        }
+        String value = mediaUrl.trim();
+        if (value.startsWith("data:")) {
+            throw new IllegalArgumentException("Upload a new file instead");
+        }
+        if (value.startsWith("http:") || value.startsWith("https:")) {
+            String base = properties.getPublicBaseUrl();
+            if (base != null && !base.isBlank()) {
+                String normalizedBase = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+                if (value.startsWith(normalizedBase + "/")) {
+                    return value.substring(normalizedBase.length() + 1);
+                }
+            }
+            return value;
+        }
+        return value;
+    }
+
+    private String normalizedPublicBase() {
         String base = properties.getPublicBaseUrl();
         if (base == null || base.isBlank()) {
             throw new IllegalStateException(
                     "app.storage.public-base-url is required when STORAGE_TYPE=s3");
         }
-        if (base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
-        }
-        return base + "/" + key;
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private String requiredBucket() {
