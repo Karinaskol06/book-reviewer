@@ -6,6 +6,7 @@ import com.project.bookreviewer.application.mapper.ClubPostMapper;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.exception.UnauthorizedException;
 import com.project.bookreviewer.domain.model.*;
+import com.project.bookreviewer.domain.port.inbound.ClubDiscussionUseCase;
 import com.project.bookreviewer.domain.port.outbound.ClubMembershipRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ClubPostRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.PostInsightfulRepositoryPort;
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ClubDiscussionService {
+public class ClubDiscussionService implements ClubDiscussionUseCase {
     private final ClubPostRepositoryPort postRepository;
     private final PostInsightfulRepositoryPort insightfulRepository;
     private final ClubMembershipRepositoryPort membershipRepository;

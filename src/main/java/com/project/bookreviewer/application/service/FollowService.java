@@ -14,6 +14,7 @@ import com.project.bookreviewer.domain.port.outbound.FollowRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
 import com.project.bookreviewer.application.config.FeedBackfillProperties;
+import com.project.bookreviewer.domain.port.inbound.FollowUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -29,7 +30,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FollowService {
+public class FollowService implements FollowUseCase {
     private final FollowRepositoryPort followRepository;
     private final UserService userService;
     private final FeedBackfillProperties backfillProperties;

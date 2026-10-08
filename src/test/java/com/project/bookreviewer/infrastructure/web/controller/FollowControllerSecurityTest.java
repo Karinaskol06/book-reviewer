@@ -1,6 +1,6 @@
 package com.project.bookreviewer.infrastructure.web.controller;
 
-import com.project.bookreviewer.application.service.FollowService;
+import com.project.bookreviewer.domain.port.inbound.FollowUseCase;
 import com.project.bookreviewer.infrastructure.security.JwtAuthenticationFilter;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import com.project.bookreviewer.infrastructure.security.WebMvcSecurityTestConfig;
@@ -36,7 +36,7 @@ class FollowControllerSecurityTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private FollowService followService;
+    private FollowUseCase followUseCase;
     @MockBean
     private SecurityUtils securityUtils;
 
@@ -48,7 +48,7 @@ class FollowControllerSecurityTest {
         mockMvc.perform(post("/api/users/2/follow"))
                 .andExpect(status().isOk());
 
-        verify(followService).follow(1L, 2L);
+        verify(followUseCase).follow(1L, 2L);
     }
 
     @Test
@@ -65,7 +65,7 @@ class FollowControllerSecurityTest {
         mockMvc.perform(delete("/api/users/2/follow"))
                 .andExpect(status().isNoContent());
 
-        verify(followService).unfollow(1L, 2L);
+        verify(followUseCase).unfollow(1L, 2L);
     }
 
     @Test
@@ -79,7 +79,7 @@ class FollowControllerSecurityTest {
     void follow_self_returnsBadRequest() throws Exception {
         when(securityUtils.getCurrentUserId()).thenReturn(2L);
         doThrow(new IllegalArgumentException("Cannot follow yourself"))
-                .when(followService).follow(2L, 2L);
+                .when(followUseCase).follow(2L, 2L);
 
         mockMvc.perform(post("/api/users/2/follow"))
                 .andExpect(status().isBadRequest());

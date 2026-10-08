@@ -4,6 +4,7 @@ import com.project.bookreviewer.application.dto.response.BookResponse;
 import com.project.bookreviewer.application.mapper.BookMapper;
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.BookFilterCriteria;
+import com.project.bookreviewer.domain.port.inbound.SearchUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.BookSearchPort;
 import com.project.bookreviewer.domain.port.outbound.BookSearchPort.BookSearchPage;
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class SearchService {
+public class SearchService implements SearchUseCase {
     private final BookSearchPort bookSearchPort;
     private final BookRepositoryPort bookRepository;
     private final BookMapper bookMapper;

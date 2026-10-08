@@ -3,6 +3,7 @@ package com.project.bookreviewer.application.service;
 import com.project.bookreviewer.domain.event.StatusChangedEvent;
 import com.project.bookreviewer.domain.model.ReadingStatus;
 import com.project.bookreviewer.domain.model.UserBookStatus;
+import com.project.bookreviewer.domain.port.inbound.UserLibraryUseCase;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -13,7 +14,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-public class UserBookStatusService {
+public class UserBookStatusService implements UserLibraryUseCase {
     private final UserBookStatusRepositoryPort statusRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
 

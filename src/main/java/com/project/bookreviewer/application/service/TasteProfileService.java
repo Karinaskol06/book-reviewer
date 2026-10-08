@@ -6,6 +6,7 @@ import com.project.bookreviewer.domain.model.Pacing;
 import com.project.bookreviewer.domain.model.ReadingStatus;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.UserBookStatus;
+import com.project.bookreviewer.domain.port.inbound.TasteProfileUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class TasteProfileService {
+public class TasteProfileService implements TasteProfileUseCase {
     static final int HIGH_RATING_THRESHOLD = 4;
     static final int TOP_GENRES = 4;
     static final int TOP_MOODS = 3;

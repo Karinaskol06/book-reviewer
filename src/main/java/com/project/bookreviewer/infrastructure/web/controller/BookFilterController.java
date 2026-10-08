@@ -1,8 +1,8 @@
 package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.response.BookResponse;
-import com.project.bookreviewer.application.service.SearchService;
 import com.project.bookreviewer.domain.model.BookFilterCriteria;
+import com.project.bookreviewer.domain.port.inbound.SearchUseCase;
 import com.project.bookreviewer.domain.model.Pacing;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class BookFilterController {
-    private final SearchService searchService;
+    private final SearchUseCase searchUseCase;
 
     @GetMapping("/books/filter")
     public ResponseEntity<Page<BookResponse>> filterBooks(
@@ -50,13 +50,13 @@ public class BookFilterController {
                 .searchQuery(query)
                 .build();
 
-        Page<BookResponse> books = searchService.filterBooks(criteria, pageable);
+        Page<BookResponse> books = searchUseCase.filterBooks(criteria, pageable);
         return ResponseEntity.ok(books);
     }
 
     @GetMapping("/genres")
     public ResponseEntity<List<String>> getAllGenres() {
         // Keep this using DB since genres are relatively static
-        return ResponseEntity.ok(searchService.getAllGenres());
+        return ResponseEntity.ok(searchUseCase.getAllGenres());
     }
 }

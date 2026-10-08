@@ -5,6 +5,7 @@ import com.project.bookreviewer.application.mapper.BookMapper;
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.UserBookStatus;
+import com.project.bookreviewer.domain.port.inbound.RecommendationUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.BookSearchPort;
 import com.project.bookreviewer.domain.port.outbound.BookSearchPort.BookRecommendationHit;
@@ -27,7 +28,7 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class RecommendationService {
+public class RecommendationService implements RecommendationUseCase {
     private static final int MAX_LIMIT = 20;
     private static final int MIN_LIMIT = 1;
     private static final int REVIEW_PAGE_SIZE = 500;

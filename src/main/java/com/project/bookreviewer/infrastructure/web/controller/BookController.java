@@ -6,11 +6,11 @@ import com.project.bookreviewer.application.dto.response.BookResponse;
 import com.project.bookreviewer.application.dto.response.CoverUploadResponse;
 import com.project.bookreviewer.application.dto.response.DuplicateCheckResponse;
 import com.project.bookreviewer.application.mapper.BookMapper;
-import com.project.bookreviewer.application.service.BookService;
-import com.project.bookreviewer.application.service.ReviewService;
-import com.project.bookreviewer.application.service.SearchService;
-import com.project.bookreviewer.application.service.UserBookStatusService;
 import com.project.bookreviewer.domain.model.Book;
+import com.project.bookreviewer.domain.port.inbound.BookUseCase;
+import com.project.bookreviewer.domain.port.inbound.ReviewUseCase;
+import com.project.bookreviewer.domain.port.inbound.SearchUseCase;
+import com.project.bookreviewer.domain.port.inbound.UserLibraryUseCase;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/books")
 @RequiredArgsConstructor
 public class BookController {
-    private final BookService bookService;
-    private final ReviewService reviewService;
-    private final SearchService searchService;
-    private final UserBookStatusService userBookStatusService;
+    private final BookUseCase bookUseCase;
+    private final ReviewUseCase reviewUseCase;
+    private final SearchUseCase searchUseCase;
+    private final UserLibraryUseCase userLibraryUseCase;
     private final SecurityUtils securityUtils;
     private final BookMapper bookMapper;
 
@@ -45,10 +45,10 @@ public class BookController {
             @RequestParam(required = false) String genre) {
         List<BookResponse> books;
         if (genre != null) {
-            books = bookService.getBooksByGenre(genre, page, size)
+            books = bookUseCase.getBooksByGenre(genre, page, size)
                     .stream().map(bookMapper::toResponse).collect(Collectors.toList());
         } else {
-            books = bookService.getBooks(page, size)
+            books = bookUseCase.getBooks(page, size)
                     .stream().map(bookMapper::toResponse).collect(Collectors.toList());
         }
         return ResponseEntity.ok(books);
@@ -56,16 +56,16 @@ public class BookController {
 
     @GetMapping("/{id}")
     public ResponseEntity<BookDetailResponse> getBook(@PathVariable Long id) {
-        Book book = bookService.getBook(id);
+        Book book = bookUseCase.getBook(id);
         BookDetailResponse response = bookMapper.toDetailResponse(book);
 
-        response.setRatingStats(reviewService.getRatingStatsDto(id));
+        response.setRatingStats(reviewUseCase.getRatingStatsDto(id));
 
         if (securityUtils.isAuthenticated()) {
             Long userId = securityUtils.getCurrentUserId();
-            userBookStatusService.getStatus(userId, id)
+            userLibraryUseCase.getStatus(userId, id)
                     .ifPresent(status -> response.setUserReadingStatus(status.getStatus()));
-            response.setUserHasReviewed(reviewService.hasUserReviewed(userId, id));
+            response.setUserHasReviewed(reviewUseCase.hasUserReviewed(userId, id));
         }
         return ResponseEntity.ok(response);
     }
@@ -82,7 +82,7 @@ public class BookController {
                 .publicationYear(request.getPublicationYear())
                 .genres(request.getGenres())
                 .build();
-        Book created = bookService.createBook(book, actorUserId);
+        Book created = bookUseCase.createBook(book, actorUserId);
         return ResponseEntity.created(URI.create("/api/books/" + created.getId()))
                 .body(bookMapper.toResponse(created));
     }
@@ -100,16 +100,16 @@ public class BookController {
                 .genres(request.getGenres())
                 .coverUrl(request.getCoverUrl())
                 .build();
-        Book updated = bookService.updateBook(id, updates);
+        Book updated = bookUseCase.updateBook(id, updates);
         return ResponseEntity.ok(bookMapper.toResponse(updated));
     }
 
     @PostMapping(value = "/covers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<CoverUploadResponse> uploadCover(@RequestParam("file") MultipartFile file) {
-        String key = bookService.storeCover(file);
+        String key = bookUseCase.storeCover(file);
         return ResponseEntity.ok(CoverUploadResponse.builder()
-                .coverUrl(bookService.toPublicCoverUrl(key))
+                .coverUrl(bookUseCase.toPublicCoverUrl(key))
                 .message("Cover uploaded successfully")
                 .build());
     }
@@ -119,14 +119,14 @@ public class BookController {
             @RequestParam String title,
             @RequestParam String author,
             @RequestParam(required = false) Long excludeBookId) {
-        return ResponseEntity.ok(bookService.checkDuplicate(title, author, excludeBookId));
+        return ResponseEntity.ok(bookUseCase.checkDuplicate(title, author, excludeBookId));
     }
 
     @GetMapping("/search")
     public ResponseEntity<Page<BookResponse>> search(
             @RequestParam String query,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(searchService.searchBooks(query, pageable));
+        return ResponseEntity.ok(searchUseCase.searchBooks(query, pageable));
     }
 
 }

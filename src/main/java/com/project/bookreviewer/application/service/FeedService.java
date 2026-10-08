@@ -8,6 +8,7 @@ import com.project.bookreviewer.application.mapper.ActivityMapper;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.ActivityEvent;
 import com.project.bookreviewer.domain.model.ActivityType;
+import com.project.bookreviewer.domain.port.inbound.FeedUseCase;
 import com.project.bookreviewer.domain.port.outbound.ActivityEventRepositoryPort;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +29,7 @@ import java.util.Set;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class FeedService {
+public class FeedService implements FeedUseCase {
     private final ActivityEventRepositoryPort activityRepository;
     private final ActivityMapper activityMapper;
     private final UserService userService;

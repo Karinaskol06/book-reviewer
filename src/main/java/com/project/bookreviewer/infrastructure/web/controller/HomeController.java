@@ -2,7 +2,7 @@ package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.response.BookResponse;
 import com.project.bookreviewer.application.mapper.BookMapper;
-import com.project.bookreviewer.application.service.BookService;
+import com.project.bookreviewer.domain.port.inbound.BookUseCase;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/home")
 @RequiredArgsConstructor
 public class HomeController {
-    private final BookService bookService;
+    private final BookUseCase bookUseCase;
     private final BookMapper bookMapper;
     private final SecurityUtils securityUtils;
 
@@ -23,7 +23,7 @@ public class HomeController {
             @RequestParam(defaultValue = "8") int limit) {
         Long excludeUserId = securityUtils.getCurrentUserIdOrNull();
         return ResponseEntity.ok(
-                bookService.getTrendingBooks(limit, excludeUserId)
+                bookUseCase.getTrendingBooks(limit, excludeUserId)
                         .stream().map(bookMapper::toResponse).collect(Collectors.toList())
         );
     }

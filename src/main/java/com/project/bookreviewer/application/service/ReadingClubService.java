@@ -8,6 +8,7 @@ import com.project.bookreviewer.application.mapper.ClubMapper;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.exception.UnauthorizedException;
 import com.project.bookreviewer.domain.model.*;
+import com.project.bookreviewer.domain.port.inbound.ReadingClubUseCase;
 import com.project.bookreviewer.domain.port.outbound.ClubMembershipRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ClubPostRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.PostInsightfulRepositoryPort;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ReadingClubService {
+public class ReadingClubService implements ReadingClubUseCase {
     private final ReadingClubRepositoryPort clubRepository;
     private final ClubMembershipRepositoryPort membershipRepository;
     private final ClubPostRepositoryPort postRepository;

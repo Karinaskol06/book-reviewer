@@ -10,6 +10,7 @@ import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.exception.UnauthorizedException;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.ReviewHelpful;
+import com.project.bookreviewer.domain.port.inbound.ReviewUseCase;
 import com.project.bookreviewer.domain.port.outbound.ReviewHelpfulRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ReviewService {
+public class ReviewService implements ReviewUseCase {
     private final ReviewRepositoryPort reviewRepository;
     private final ReviewHelpfulRepositoryPort reviewHelpfulRepository;
     private final BookService bookService; // to update book rating cache

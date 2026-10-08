@@ -1,7 +1,7 @@
 package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.response.BookResponse;
-import com.project.bookreviewer.application.service.RecommendationService;
+import com.project.bookreviewer.domain.port.inbound.RecommendationUseCase;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,13 +16,13 @@ import java.util.List;
 @RequestMapping("/api/recommendations")
 @RequiredArgsConstructor
 public class RecommendationController {
-    private final RecommendationService recommendationService;
+    private final RecommendationUseCase recommendationUseCase;
     private final SecurityUtils securityUtils;
 
     @GetMapping
     public ResponseEntity<List<BookResponse>> getRecommendations(
             @RequestParam(defaultValue = "6") int limit) {
         Long userId = securityUtils.getCurrentUserId();
-        return ResponseEntity.ok(recommendationService.getRecommendations(userId, limit));
+        return ResponseEntity.ok(recommendationUseCase.getRecommendations(userId, limit));
     }
 }

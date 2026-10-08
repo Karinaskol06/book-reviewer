@@ -4,10 +4,10 @@ import com.project.bookreviewer.application.dto.response.TasteProfileResponse;
 import com.project.bookreviewer.application.dto.response.UserProfileResponse;
 import com.project.bookreviewer.application.mapper.ReviewMapper;
 import com.project.bookreviewer.application.mapper.UserMapper;
-import com.project.bookreviewer.application.service.ReviewService;
-import com.project.bookreviewer.application.service.TasteProfileService;
-import com.project.bookreviewer.application.service.UserBookStatusService;
-import com.project.bookreviewer.application.service.UserService;
+import com.project.bookreviewer.domain.port.inbound.ReviewUseCase;
+import com.project.bookreviewer.domain.port.inbound.TasteProfileUseCase;
+import com.project.bookreviewer.domain.port.inbound.UserLibraryUseCase;
+import com.project.bookreviewer.domain.port.inbound.UserProfileUseCase;
 import com.project.bookreviewer.domain.model.Role;
 import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.infrastructure.security.JwtAuthenticationFilter;
@@ -50,13 +50,13 @@ class UserProfileControllerSecurityTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private UserService userService;
+    private UserProfileUseCase userProfileUseCase;
     @MockBean
-    private UserBookStatusService userBookStatusService;
+    private UserLibraryUseCase userLibraryUseCase;
     @MockBean
-    private ReviewService reviewService;
+    private ReviewUseCase reviewUseCase;
     @MockBean
-    private TasteProfileService tasteProfileService;
+    private TasteProfileUseCase tasteProfileUseCase;
     @MockBean
     private SecurityUtils securityUtils;
     @MockBean
@@ -80,7 +80,7 @@ class UserProfileControllerSecurityTest {
                                 """))
                 .andExpect(status().isNoContent());
 
-        verify(userService).updateProfile(
+        verify(userProfileUseCase).updateProfile(
                 eq(1L),
                 eq("Alice"),
                 eq("I love books"),
@@ -107,11 +107,11 @@ class UserProfileControllerSecurityTest {
                 .roles(Set.of(Role.USER))
                 .enabled(true)
                 .build();
-        when(userService.getUserById(5L)).thenReturn(user);
+        when(userProfileUseCase.getUserById(5L)).thenReturn(user);
         when(userMapper.toProfileResponse(user)).thenReturn(
                 UserProfileResponse.builder().id(5L).username("natalia").build());
-        when(userBookStatusService.getUserLibrary(eq(5L), any())).thenReturn(List.of());
-        when(reviewService.countReviewsByUser(5L)).thenReturn(2);
+        when(userLibraryUseCase.getUserLibrary(eq(5L), any())).thenReturn(List.of());
+        when(reviewUseCase.countReviewsByUser(5L)).thenReturn(2);
 
         mockMvc.perform(get("/api/users/5"))
                 .andExpect(status().isOk());
@@ -127,10 +127,10 @@ class UserProfileControllerSecurityTest {
     @Test
     @WithMockUser(username = "alice")
     void getTasteProfile_authenticated_returnsOk() throws Exception {
-        when(userService.getUserById(5L)).thenReturn(
+        when(userProfileUseCase.getUserById(5L)).thenReturn(
                 User.builder().id(5L).username("natalia").email("n@ex.com").password("x")
                         .roles(Set.of(Role.USER)).enabled(true).build());
-        when(tasteProfileService.getTasteProfile(5L)).thenReturn(
+        when(tasteProfileUseCase.getTasteProfile(5L)).thenReturn(
                 TasteProfileResponse.builder().sampleSize(3).build());
 
         mockMvc.perform(get("/api/users/5/taste-profile"))

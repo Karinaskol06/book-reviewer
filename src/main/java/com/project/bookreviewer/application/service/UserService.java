@@ -4,6 +4,7 @@ import com.project.bookreviewer.application.dto.response.ReviewResponse;
 import com.project.bookreviewer.application.dto.response.UserSearchItemDto;
 import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.User;
+import com.project.bookreviewer.domain.port.inbound.UserProfileUseCase;
 import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserRepositoryPort;
@@ -20,7 +21,7 @@ import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
-public class UserService {
+public class UserService implements UserProfileUseCase {
     private static final String AVATAR_FOLDER = "avatars";
     private static final int MAX_SOCIAL_LINKS = 5;
 

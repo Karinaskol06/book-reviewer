@@ -3,7 +3,7 @@ package com.project.bookreviewer.infrastructure.web.controller;
 import com.project.bookreviewer.application.dto.request.CreateReviewRequest;
 import com.project.bookreviewer.application.dto.response.ReviewResponse;
 import com.project.bookreviewer.application.mapper.ReviewMapper;
-import com.project.bookreviewer.application.service.ReviewService;
+import com.project.bookreviewer.domain.port.inbound.ReviewUseCase;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import jakarta.validation.Valid;
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class ReviewController {
-    private final ReviewService reviewService;
+    private final ReviewUseCase reviewUseCase;
     private final ReviewMapper reviewMapper;
     private final SecurityUtils securityUtils;
 
@@ -29,11 +29,11 @@ public class ReviewController {
             @PageableDefault(size = 10) Pageable pageable,
             @RequestParam(required = false, defaultValue = "false") boolean includeSpoilers) {
         Long currentUserId = securityUtils.getCurrentUserIdOrNull();
-        Page<Review> reviews = reviewService.getReviewsByBook(bookId, pageable);
+        Page<Review> reviews = reviewUseCase.getReviewsByBook(bookId, pageable);
 
         Page<ReviewResponse> responsePage = reviews.map(review -> {
             ReviewResponse response = reviewMapper.toResponse(review, includeSpoilers);
-            response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+            response.setHasHelpful(reviewUseCase.hasUserMarkedHelpful(review.getId(), currentUserId));
             return response;
         });
         return ResponseEntity.ok(responsePage);
@@ -44,10 +44,10 @@ public class ReviewController {
             @PathVariable Long reviewId,
             @RequestParam(required = false, defaultValue = "false") boolean includeSpoilers) {
         Long currentUserId = securityUtils.getCurrentUserIdOrNull();
-        Review review = reviewService.getReview(reviewId);
+        Review review = reviewUseCase.getReview(reviewId);
         boolean showSpoilers = includeSpoilers || (currentUserId != null && currentUserId.equals(review.getUserId()));
         ReviewResponse response = reviewMapper.toResponse(review, showSpoilers);
-        response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+        response.setHasHelpful(reviewUseCase.hasUserMarkedHelpful(review.getId(), currentUserId));
         return ResponseEntity.ok(response);
     }
 
@@ -56,7 +56,7 @@ public class ReviewController {
             @PathVariable Long bookId,
             @Valid @RequestBody CreateReviewRequest request) {
         Long userId = securityUtils.getCurrentUserId();
-        Review review = reviewService.createReview(userId, bookId, request);
+        Review review = reviewUseCase.createReview(userId, bookId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reviewMapper.toResponse(review));
     }
@@ -65,23 +65,23 @@ public class ReviewController {
     public ResponseEntity<ReviewResponse> updateReview(
             @PathVariable Long reviewId,
             @Valid @RequestBody CreateReviewRequest request) {
-        Review review = reviewService.updateReview(reviewId, request);
+        Review review = reviewUseCase.updateReview(reviewId, request);
         Long currentUserId = securityUtils.getCurrentUserIdOrNull();
         ReviewResponse response = reviewMapper.toResponse(review, true);
-        response.setHasHelpful(reviewService.hasUserMarkedHelpful(review.getId(), currentUserId));
+        response.setHasHelpful(reviewUseCase.hasUserMarkedHelpful(review.getId(), currentUserId));
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/reviews/{reviewId}")
     public ResponseEntity<Void> deleteReview(@PathVariable Long reviewId) {
-        reviewService.deleteReview(reviewId);
+        reviewUseCase.deleteReview(reviewId);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/reviews/{reviewId}/helpful")
     public ResponseEntity<Void> toggleHelpful(@PathVariable Long reviewId) {
         Long userId = securityUtils.getCurrentUserId();
-        reviewService.toggleHelpful(reviewId, userId);
+        reviewUseCase.toggleHelpful(reviewId, userId);
         return ResponseEntity.noContent().build();
     }
 

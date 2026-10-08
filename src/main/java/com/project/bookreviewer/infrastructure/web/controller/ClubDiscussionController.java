@@ -2,7 +2,7 @@ package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.request.CreatePostRequest;
 import com.project.bookreviewer.application.dto.response.ClubPostResponse;
-import com.project.bookreviewer.application.service.ClubDiscussionService;
+import com.project.bookreviewer.domain.port.inbound.ClubDiscussionUseCase;
 import com.project.bookreviewer.domain.model.ClubPost;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
 import jakarta.validation.Valid;
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/clubs")
 @RequiredArgsConstructor
 public class ClubDiscussionController {
-    private final ClubDiscussionService discussionService;
+    private final ClubDiscussionUseCase discussionUseCase;
     private final SecurityUtils securityUtils;
 
     // Posts
@@ -29,9 +29,9 @@ public class ClubDiscussionController {
             @PathVariable Long clubId,
             @Valid @RequestBody CreatePostRequest request) {
         Long userId = securityUtils.getCurrentUserId();
-        ClubPost post = discussionService.createPost(clubId, userId, request);
+        ClubPost post = discussionUseCase.createPost(clubId, userId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(discussionService.getPost(post.getId(), userId));
+                .body(discussionUseCase.getPost(post.getId(), userId));
     }
 
     @GetMapping("/{clubId}/posts")
@@ -39,7 +39,7 @@ public class ClubDiscussionController {
             @PathVariable Long clubId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Long userId = securityUtils.getCurrentUserIdOrNull();
-        return ResponseEntity.ok(discussionService.getClubPosts(clubId, pageable, userId));
+        return ResponseEntity.ok(discussionUseCase.getClubPosts(clubId, pageable, userId));
     }
 
     @GetMapping("/{clubId}/posts/{postId}")
@@ -47,7 +47,7 @@ public class ClubDiscussionController {
             @PathVariable Long clubId,
             @PathVariable Long postId) {
         Long userId = securityUtils.getCurrentUserIdOrNull();
-        return ResponseEntity.ok(discussionService.getPost(postId, userId));
+        return ResponseEntity.ok(discussionUseCase.getPost(postId, userId));
     }
 
     @PutMapping("/{clubId}/posts/{postId}")
@@ -56,8 +56,8 @@ public class ClubDiscussionController {
             @PathVariable Long postId,
             @Valid @RequestBody CreatePostRequest request) {
         Long userId = securityUtils.getCurrentUserId();
-        ClubPost post = discussionService.updatePost(postId, userId, request.getContent());
-        return ResponseEntity.ok(discussionService.getPost(post.getId(), userId));
+        ClubPost post = discussionUseCase.updatePost(postId, userId, request.getContent());
+        return ResponseEntity.ok(discussionUseCase.getPost(post.getId(), userId));
     }
 
     @DeleteMapping("/{clubId}/posts/{postId}")
@@ -65,7 +65,7 @@ public class ClubDiscussionController {
             @PathVariable Long clubId,
             @PathVariable Long postId) {
         Long userId = securityUtils.getCurrentUserId();
-        discussionService.deletePost(postId, userId);
+        discussionUseCase.deletePost(postId, userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -78,9 +78,9 @@ public class ClubDiscussionController {
             @Valid @RequestBody CreatePostRequest request) {
         Long userId = securityUtils.getCurrentUserId();
         request.setParentPostId(postId);
-        ClubPost reply = discussionService.createPost(clubId, userId, request);
+        ClubPost reply = discussionUseCase.createPost(clubId, userId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(discussionService.getPost(reply.getId(), userId));
+                .body(discussionUseCase.getPost(reply.getId(), userId));
     }
 
     @GetMapping("/{clubId}/posts/{postId}/replies")
@@ -89,7 +89,7 @@ public class ClubDiscussionController {
             @PathVariable Long postId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC) Pageable pageable) {
         Long userId = securityUtils.getCurrentUserIdOrNull();
-        return ResponseEntity.ok(discussionService.getPostReplies(postId, pageable, userId));
+        return ResponseEntity.ok(discussionUseCase.getPostReplies(postId, pageable, userId));
     }
 
     // Insightful
@@ -99,7 +99,7 @@ public class ClubDiscussionController {
             @PathVariable Long clubId,
             @PathVariable Long postId) {
         Long userId = securityUtils.getCurrentUserId();
-        discussionService.toggleInsightful(postId, userId);
+        discussionUseCase.toggleInsightful(postId, userId);
         return ResponseEntity.ok().build();
     }
 }
