@@ -87,7 +87,6 @@ public final class NormalizationUtils {
         if (requested == null || requested.isEmpty()) {
             return Set.of();
         }
-        // Build a list of keys of the selected genres
         Set<String> keys = new LinkedHashSet<>();
         for (String genre : requested) {
             String key = genreKey(genre);
@@ -99,17 +98,17 @@ public final class NormalizationUtils {
             return Set.of();
         }
 
-        // Pull matching aliases from the catalog (if genre isn't stored normalized)
+        // Pull matching aliases from the catalog (DB may store "SCI-FI", "Sci Fi", etc.)
         Set<String> expanded = new LinkedHashSet<>();
         if (catalog != null) {
             for (String genre : catalog) {
                 String key = genreKey(genre);
-                if (key != null && !key.isBlank()) {
-                    expanded.add(key);
+                if (key != null && keys.contains(key)) {
+                    expanded.add(genre);
                 }
             }
         }
-        // Include a clean display form
+        // Include a clean display form for each request
         for (String genre : requested) {
             String label = toGenreLabel(genre);
             if (label != null) {

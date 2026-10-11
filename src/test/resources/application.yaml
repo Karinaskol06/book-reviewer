@@ -1,4 +1,24 @@
-# Tests own schema via Hibernate create-drop / H2; do not run Flyway migrations.
+# Defaults for @SpringBootTest / unit-style integration tests.
+# Postgres Testcontainers ITs override datasource via @DynamicPropertySource.
 spring:
   flyway:
     enabled: false
+  datasource:
+    url: jdbc:h2:mem:bookreviewer;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+jwt:
+  secret: 0123456789abcdef0123456789abcdef
+  expiration: 3600000
+
+app:
+  storage:
+    type: local
