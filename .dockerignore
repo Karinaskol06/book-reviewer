@@ -1,0 +1,13 @@
+.git
+.idea
+.cursor
+target
+uploads-book-reviewer
+backups
+.pg-recover
+bookreviewer-frontend
+docs
+*.md
+.env
+.env.*
+!/.env.example

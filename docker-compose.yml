@@ -32,7 +32,6 @@ services:
       retries: 5
 
   app:
-    profiles: ["full"]
     build: .
     ports:
       - "8081:8080"
@@ -43,12 +42,13 @@ services:
         condition: service_healthy
     environment:
       DB_HOST: postgres
-      DB_PORT: ${DB_PORT:-5432}
+      DB_PORT: 5432
       DB_NAME: ${DB_NAME:-bookreviewer}
       DB_USERNAME: ${DB_USERNAME:-bookreview_user}
       DB_PASSWORD: ${DB_PASSWORD:-bookreview_password}
       SERVER_PORT: 8080
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-secret}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       ELASTICSEARCH_HOST: elasticsearch
       ELASTICSEARCH_PORT: 9200
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
@@ -64,7 +64,6 @@ services:
       - uploads_data:/app/uploads-book-reviewer
 
   frontend:
-    profiles: ["full"]
     build: ./bookreviewer-frontend
     ports:
       - "3080:80"
@@ -73,6 +72,5 @@ services:
 
 volumes:
   postgres_data:
-  postgres_data_fresh:
   es_data:
   uploads_data:
