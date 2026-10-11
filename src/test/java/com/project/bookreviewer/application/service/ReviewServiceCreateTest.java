@@ -13,7 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import java.util.Set;
 
@@ -34,7 +34,7 @@ class ReviewServiceCreateTest {
     @Mock
     private BookService bookService;
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
 
     @InjectMocks
     private ReviewService reviewService;
@@ -80,10 +80,10 @@ class ReviewServiceCreateTest {
         assertThat(persisted.getId()).isNull();
 
         assertThat(saved.getId()).isEqualTo(99L);
-        verify(applicationEventPublisher).publishEvent(org.mockito.ArgumentMatchers.argThat(event ->
+        verify(eventPublisher).publish(org.mockito.ArgumentMatchers.argThat(event ->
                 event instanceof ReviewCreatedEvent created
-                        && created.getReview().getId().equals(99L)
-                        && created.getReview().getBookId().equals(5L)
+                        && created.review().getId().equals(99L)
+                        && created.review().getBookId().equals(5L)
         ));
         verify(bookService).updateBookRatingStats(5L);
     }
@@ -97,7 +97,7 @@ class ReviewServiceCreateTest {
                 .hasMessageContaining("already reviewed");
 
         verify(reviewRepository, never()).save(any());
-        verify(applicationEventPublisher, never()).publishEvent(any());
+        verify(eventPublisher, never()).publish(any());
         verify(bookService, never()).updateBookRatingStats(any());
     }
 

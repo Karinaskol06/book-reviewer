@@ -8,7 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,7 +22,7 @@ class BookServiceCoverTest {
     @Mock
     private ReviewRepositoryPort reviewRepository;
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
     @Mock
     private ObjectStoragePort objectStoragePort;
 

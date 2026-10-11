@@ -9,10 +9,10 @@ import com.project.bookreviewer.domain.exception.ResourceNotFoundException;
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.port.inbound.BookUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +32,7 @@ public class BookService implements BookUseCase {
 
     private final BookRepositoryPort bookRepository;
     private final ReviewRepositoryPort reviewRepository;
-    private final ApplicationEventPublisher applicationEventPublisher;
+    private final EventPublisherPort eventPublisher;
     private final ObjectStoragePort objectStoragePort;
 
     @Override
@@ -66,7 +66,7 @@ public class BookService implements BookUseCase {
 
         try {
             Book saved = bookRepository.save(book);
-            applicationEventPublisher.publishEvent(new BookCreatedEvent(this, saved, actorUserId));
+            eventPublisher.publish(new BookCreatedEvent(saved, actorUserId));
             return saved;
         } catch (DataIntegrityViolationException e) {
             // DB-level duplicate prevention (concurrent requests)
@@ -113,7 +113,7 @@ public class BookService implements BookUseCase {
 
         try {
             Book saved = bookRepository.save(toSave);
-            applicationEventPublisher.publishEvent(new BookUpdatedEvent(this, saved));
+            eventPublisher.publish(new BookUpdatedEvent(saved));
             return saved;
         } catch (DataIntegrityViolationException e) {
             Optional<Book> concurrentExisting = bookRepository.findByNormalizedTitleAndNormalizedAuthor(
@@ -203,7 +203,7 @@ public class BookService implements BookUseCase {
                 .build();
 
         Book saved = bookRepository.save(updated);
-        applicationEventPublisher.publishEvent(new BookUpdatedEvent(this, saved));
+        eventPublisher.publish(new BookUpdatedEvent(saved));
     }
 
     // Home page specific — excludeUserId comes from the driving adapter (controller).

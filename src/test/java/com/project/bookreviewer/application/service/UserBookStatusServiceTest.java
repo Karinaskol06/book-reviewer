@@ -10,7 +10,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import java.util.Optional;
 
@@ -27,7 +27,7 @@ class UserBookStatusServiceTest {
     private UserBookStatusRepositoryPort statusRepository;
 
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
 
     @InjectMocks
     private UserBookStatusService userBookStatusService;
@@ -49,7 +49,7 @@ class UserBookStatusServiceTest {
 
         assertThat(result).isSameAs(existing);
         verify(statusRepository, never()).save(any());
-        verify(applicationEventPublisher, never()).publishEvent(any());
+        verify(eventPublisher, never()).publish(any());
     }
 
     @Test
@@ -77,10 +77,10 @@ class UserBookStatusServiceTest {
         assertThat(result.getStatus()).isEqualTo(ReadingStatus.READING);
         verify(statusRepository).save(any());
         ArgumentCaptor<StatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(StatusChangedEvent.class);
-        verify(applicationEventPublisher).publishEvent(eventCaptor.capture());
+        verify(eventPublisher).publish(eventCaptor.capture());
         StatusChangedEvent event = eventCaptor.getValue();
-        assertThat(event.getNewStatus()).isEqualTo(ReadingStatus.READING);
-        assertThat(event.getUserId()).isEqualTo(userId);
-        assertThat(event.getBookId()).isEqualTo(bookId);
+        assertThat(event.newStatus()).isEqualTo(ReadingStatus.READING);
+        assertThat(event.userId()).isEqualTo(userId);
+        assertThat(event.bookId()).isEqualTo(bookId);
     }
 }

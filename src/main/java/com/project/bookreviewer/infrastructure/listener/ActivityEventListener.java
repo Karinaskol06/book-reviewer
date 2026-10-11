@@ -1,10 +1,10 @@
-package com.project.bookreviewer.application.service;
+package com.project.bookreviewer.infrastructure.listener;
 
+import com.project.bookreviewer.domain.event.BookCreatedEvent;
+import com.project.bookreviewer.domain.event.FollowCreatedEvent;
 import com.project.bookreviewer.domain.event.ReviewCreatedEvent;
 import com.project.bookreviewer.domain.event.ReviewDeletedEvent;
 import com.project.bookreviewer.domain.event.StatusChangedEvent;
-import com.project.bookreviewer.domain.event.BookCreatedEvent;
-import com.project.bookreviewer.domain.event.FollowCreatedEvent;
 import com.project.bookreviewer.domain.model.ActivityEvent;
 import com.project.bookreviewer.domain.model.ActivityType;
 import com.project.bookreviewer.domain.model.Follow;
@@ -14,70 +14,73 @@ import com.project.bookreviewer.domain.port.outbound.FollowRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Service
+/**
+ * Infrastructure listener: reacts to plain domain events and writes activity-feed rows.
+ */
+@Component
 @RequiredArgsConstructor
 @Slf4j
-public class ActivityService {
+public class ActivityEventListener {
     private final ActivityEventRepositoryPort activityRepository;
     private final FollowRepositoryPort followRepository;
 
     @EventListener
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleStatusChanged(StatusChangedEvent event) {
-        ActivityType type = mapStatusToActivityType(event.getNewStatus());
-        if (type == null) return;
+        ActivityType type = mapStatusToActivityType(event.newStatus());
+        if (type == null) {
+            return;
+        }
 
-        // Create events for all followers' feeds
-        List<Follow> followers = followRepository.findFollowers(event.getUserId());
+        List<Follow> followers = followRepository.findFollowers(event.userId());
         for (Follow follow : followers) {
             ActivityEvent followerEvent = ActivityEvent.builder()
-                    .actorId(event.getUserId())
+                    .actorId(event.userId())
                     .targetUserId(follow.getFollowerId())
                     .type(type)
-                    .bookId(event.getBookId())
+                    .bookId(event.bookId())
                     .build();
             activityRepository.save(followerEvent);
         }
-        log.info("Status change events created for user {} and {} followers", event.getUserId(), followers.size());
+        log.info("Status change events created for user {} and {} followers", event.userId(), followers.size());
     }
 
     @EventListener
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleReviewCreated(ReviewCreatedEvent event) {
-
-        // Followers' feeds
-        List<Follow> followers = followRepository.findFollowers(event.getReview().getUserId());
+        List<Follow> followers = followRepository.findFollowers(event.review().getUserId());
         for (Follow follow : followers) {
             ActivityEvent followerEvent = ActivityEvent.builder()
-                    .actorId(event.getReview().getUserId())
+                    .actorId(event.review().getUserId())
                     .targetUserId(follow.getFollowerId())
                     .type(ActivityType.REVIEWED)
-                    .bookId(event.getReview().getBookId())
-                    .reviewId(event.getReview().getId())
-                    .additionalData("{\"rating\": " + event.getReview().getRating() + "}")
-                    .createdAt(event.getReview().getCreatedAt())
+                    .bookId(event.review().getBookId())
+                    .reviewId(event.review().getId())
+                    .additionalData("{\"rating\": " + event.review().getRating() + "}")
+                    .createdAt(event.review().getCreatedAt())
                     .build();
             activityRepository.save(followerEvent);
         }
-        log.info("Review created events for user {} and {} followers", event.getReview().getUserId(), followers.size());
+        log.info("Review created events for user {} and {} followers",
+                event.review().getUserId(), followers.size());
     }
 
     @EventListener
     @Transactional
     public void handleReviewDeleted(ReviewDeletedEvent event) {
-        activityRepository.deleteByReviewId(event.getReviewId());
-        log.info("Removed feed events for deleted review {}", event.getReviewId());
+        activityRepository.deleteByReviewId(event.reviewId());
+        log.info("Removed feed events for deleted review {}", event.reviewId());
     }
 
     @EventListener
     public void handleBookCreated(BookCreatedEvent event) {
-        // Catalog adds are not fan-out to feeds (feed = reviews + shelf status only).
+        // Catalog adds are not fan-out to feeds for now (feed = reviews + shelf status only).
     }
 
     @EventListener

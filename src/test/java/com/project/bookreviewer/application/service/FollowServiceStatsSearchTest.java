@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import java.util.List;
 
@@ -32,7 +32,7 @@ class FollowServiceStatsSearchTest {
     @Mock private UserService userService;
     @Mock private FeedBackfillProperties backfillProperties;
     @Mock private ActivityEventRepositoryPort activityRepository;
-    @Mock private ApplicationEventPublisher applicationEventPublisher;
+    @Mock private EventPublisherPort eventPublisher;
     @Mock private ReviewRepositoryPort reviewRepository;
     @Mock private UserBookStatusRepositoryPort statusRepository;
 
@@ -45,7 +45,7 @@ class FollowServiceStatsSearchTest {
                 userService,
                 backfillProperties,
                 activityRepository,
-                applicationEventPublisher,
+                eventPublisher,
                 reviewRepository,
                 statusRepository
         );

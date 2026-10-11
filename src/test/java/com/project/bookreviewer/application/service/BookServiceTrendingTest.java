@@ -2,6 +2,7 @@ package com.project.bookreviewer.application.service;
 
 import com.project.bookreviewer.domain.model.Book;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 import com.project.bookreviewer.domain.port.outbound.ObjectStoragePort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ class BookServiceTrendingTest {
     @Mock
     private ReviewRepositoryPort reviewRepository;
     @Mock
-    private org.springframework.context.ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
     @Mock
     private ObjectStoragePort objectStoragePort;
 

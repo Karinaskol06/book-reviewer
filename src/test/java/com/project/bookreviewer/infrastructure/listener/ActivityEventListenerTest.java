@@ -1,4 +1,4 @@
-package com.project.bookreviewer.application.service;
+package com.project.bookreviewer.infrastructure.listener;
 
 import com.project.bookreviewer.domain.event.BookCreatedEvent;
 import com.project.bookreviewer.domain.event.FollowCreatedEvent;
@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class ActivityServiceTest {
+class ActivityEventListenerTest {
 
     @Mock
     private ActivityEventRepositoryPort activityRepository;
@@ -39,14 +39,14 @@ class ActivityServiceTest {
     private FollowRepositoryPort followRepository;
 
     @InjectMocks
-    private ActivityService activityService;
+    private ActivityEventListener activityEventListener;
 
     @Test
     void handleBookCreated_doesNotWriteFeedEvents() {
         Book book = Book.builder().id(99L).title("T").author("A").build();
-        BookCreatedEvent event = new BookCreatedEvent(this, book, 7L);
+        BookCreatedEvent event = new BookCreatedEvent(book, 7L);
 
-        activityService.handleBookCreated(event);
+        activityEventListener.handleBookCreated(event);
 
         verify(activityRepository, never()).save(any());
         verify(followRepository, never()).findFollowers(any());
@@ -54,9 +54,9 @@ class ActivityServiceTest {
 
     @Test
     void handleFollowCreated_doesNotWriteFeedEvents() {
-        FollowCreatedEvent event = new FollowCreatedEvent(this, 1L, 2L);
+        FollowCreatedEvent event = new FollowCreatedEvent(1L, 2L);
 
-        activityService.handleFollowCreated(event);
+        activityEventListener.handleFollowCreated(event);
 
         verify(activityRepository, never()).save(any());
         verify(followRepository, never()).findFollowers(any());
@@ -68,9 +68,9 @@ class ActivityServiceTest {
                 Follow.builder().followerId(1L).followingId(5L).build(),
                 Follow.builder().followerId(2L).followingId(5L).build()
         ));
-        StatusChangedEvent event = new StatusChangedEvent(this, 5L, 40L, ReadingStatus.READ);
+        StatusChangedEvent event = new StatusChangedEvent(5L, 40L, ReadingStatus.READ);
 
-        activityService.handleStatusChanged(event);
+        activityEventListener.handleStatusChanged(event);
 
         ArgumentCaptor<ActivityEvent> captor = ArgumentCaptor.forClass(ActivityEvent.class);
         verify(activityRepository, org.mockito.Mockito.times(2)).save(captor.capture());
@@ -89,7 +89,7 @@ class ActivityServiceTest {
                 Follow.builder().followerId(1L).followingId(5L).build()
         ));
 
-        activityService.handleReviewCreated(new ReviewCreatedEvent(this, review));
+        activityEventListener.handleReviewCreated(new ReviewCreatedEvent(review));
 
         ArgumentCaptor<ActivityEvent> captor = ArgumentCaptor.forClass(ActivityEvent.class);
         verify(activityRepository).save(captor.capture());
@@ -102,7 +102,7 @@ class ActivityServiceTest {
 
     @Test
     void handleReviewDeleted_removesFeedEventsForReview() {
-        activityService.handleReviewDeleted(new ReviewDeletedEvent(this, 3L));
+        activityEventListener.handleReviewDeleted(new ReviewDeletedEvent(3L));
 
         verify(activityRepository).deleteByReviewId(3L);
         verify(activityRepository, never()).save(any());

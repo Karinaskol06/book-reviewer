@@ -10,6 +10,7 @@ import com.project.bookreviewer.domain.model.ReadingStatus;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.UserBookStatus;
 import com.project.bookreviewer.domain.port.outbound.ActivityEventRepositoryPort;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 import com.project.bookreviewer.domain.port.outbound.FollowRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
@@ -17,7 +18,6 @@ import com.project.bookreviewer.application.config.FeedBackfillProperties;
 import com.project.bookreviewer.domain.port.inbound.FollowUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +35,7 @@ public class FollowService implements FollowUseCase {
     private final UserService userService;
     private final FeedBackfillProperties backfillProperties;
     private final ActivityEventRepositoryPort activityRepository;
-    private final ApplicationEventPublisher applicationEventPublisher;
+    private final EventPublisherPort eventPublisher;
     private final ReviewRepositoryPort reviewRepository;
     private final UserBookStatusRepositoryPort statusRepository;
 
@@ -56,7 +56,7 @@ public class FollowService implements FollowUseCase {
                 .followingId(followingId)
                 .build();
         followRepository.save(follow);
-        applicationEventPublisher.publishEvent(new FollowCreatedEvent(this, followerId, followingId));
+        eventPublisher.publish(new FollowCreatedEvent(followerId, followingId));
         backfillRecentActivities(followerId, followingId);
     }
 

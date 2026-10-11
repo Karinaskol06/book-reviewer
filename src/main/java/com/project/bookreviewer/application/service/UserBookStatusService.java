@@ -4,9 +4,9 @@ import com.project.bookreviewer.domain.event.StatusChangedEvent;
 import com.project.bookreviewer.domain.model.ReadingStatus;
 import com.project.bookreviewer.domain.model.UserBookStatus;
 import com.project.bookreviewer.domain.port.inbound.UserLibraryUseCase;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 import com.project.bookreviewer.domain.port.outbound.UserBookStatusRepositoryPort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserBookStatusService implements UserLibraryUseCase {
     private final UserBookStatusRepositoryPort statusRepository;
-    private final ApplicationEventPublisher applicationEventPublisher;
+    private final EventPublisherPort eventPublisher;
 
     @Transactional
     public UserBookStatus setStatus(Long userId, Long bookId, ReadingStatus status) {
@@ -41,7 +41,7 @@ public class UserBookStatusService implements UserLibraryUseCase {
                     .build();
         }
         entity = statusRepository.save(entity);
-        applicationEventPublisher.publishEvent(new StatusChangedEvent(this, userId, bookId, status));
+        eventPublisher.publish(new StatusChangedEvent(userId, bookId, status));
         return entity;
     }
 

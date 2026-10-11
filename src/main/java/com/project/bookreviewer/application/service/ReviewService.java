@@ -11,11 +11,11 @@ import com.project.bookreviewer.domain.exception.UnauthorizedException;
 import com.project.bookreviewer.domain.model.Review;
 import com.project.bookreviewer.domain.model.ReviewHelpful;
 import com.project.bookreviewer.domain.port.inbound.ReviewUseCase;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewHelpfulRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,7 +31,7 @@ public class ReviewService implements ReviewUseCase {
     private final ReviewRepositoryPort reviewRepository;
     private final ReviewHelpfulRepositoryPort reviewHelpfulRepository;
     private final BookService bookService; // to update book rating cache
-    private final ApplicationEventPublisher applicationEventPublisher;
+    private final EventPublisherPort eventPublisher;
 
     @Transactional
     public Review createReview(Long userId, Long bookId, CreateReviewRequest request) {
@@ -57,7 +57,7 @@ public class ReviewService implements ReviewUseCase {
                 .build();
 
         Review saved = reviewRepository.save(review);
-        applicationEventPublisher.publishEvent(new ReviewCreatedEvent(this, saved));
+        eventPublisher.publish(new ReviewCreatedEvent(saved));
         bookService.updateBookRatingStats(bookId); // recalc and cache
         return saved;
     }
@@ -98,7 +98,7 @@ public class ReviewService implements ReviewUseCase {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
         reviewHelpfulRepository.deleteByReviewId(reviewId);
-        applicationEventPublisher.publishEvent(new ReviewDeletedEvent(this, reviewId));
+        eventPublisher.publish(new ReviewDeletedEvent(reviewId));
         reviewRepository.deleteById(reviewId);
         bookService.updateBookRatingStats(review.getBookId());
     }

@@ -17,7 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import java.util.Optional;
 import java.util.Set;
@@ -38,7 +38,7 @@ class BookServiceUpdateTest {
     @Mock
     private ReviewRepositoryPort reviewRepository;
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
     @Mock
     private ObjectStoragePort objectStoragePort;
 
@@ -99,8 +99,8 @@ class BookServiceUpdateTest {
         assertThat(saved.getTotalReviews()).isEqualTo(10);
 
         ArgumentCaptor<BookUpdatedEvent> eventCaptor = ArgumentCaptor.forClass(BookUpdatedEvent.class);
-        verify(applicationEventPublisher).publishEvent(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().getBook().getId()).isEqualTo(5L);
+        verify(eventPublisher).publish(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().book().getId()).isEqualTo(5L);
     }
 
     @Test

@@ -12,7 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import java.util.Optional;
 
@@ -33,7 +33,7 @@ class ReviewServiceHelpfulTest {
     @Mock
     private BookService bookService;
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
 
     @InjectMocks
     private ReviewService reviewService;

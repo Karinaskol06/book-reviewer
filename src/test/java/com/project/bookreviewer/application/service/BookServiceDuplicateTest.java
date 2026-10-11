@@ -15,7 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import java.util.Optional;
 
@@ -36,7 +36,7 @@ class BookServiceDuplicateTest {
     @Mock
     private ReviewRepositoryPort reviewRepository;
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
     @Mock
     private ObjectStoragePort objectStoragePort;
 

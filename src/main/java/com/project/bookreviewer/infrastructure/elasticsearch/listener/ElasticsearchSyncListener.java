@@ -35,7 +35,7 @@ public class ElasticsearchSyncListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBookCreated(BookCreatedEvent event) {
-        Long bookId = event.getBook().getId();
+        Long bookId = event.book().getId();
         try {
             syncBookDocumentFromDatabase(bookId);
             log.info("Book indexed in ES: id={}", bookId);
@@ -47,7 +47,7 @@ public class ElasticsearchSyncListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBookUpdated(BookUpdatedEvent event) {
-        Long bookId = event.getBook().getId();
+        Long bookId = event.book().getId();
         try {
             syncBookDocumentFromDatabase(bookId);
             log.info("Book updated in ES: id={}", bookId);
@@ -59,7 +59,7 @@ public class ElasticsearchSyncListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleReviewCreated(ReviewCreatedEvent event) {
-        Review review = event.getReview();
+        Review review = event.review();
         try {
             ReviewDocument doc = ReviewDocument.builder()
                     .id(review.getUserId() + "_" + review.getBookId())

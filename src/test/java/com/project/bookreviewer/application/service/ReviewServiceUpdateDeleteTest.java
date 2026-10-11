@@ -13,7 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -36,7 +36,7 @@ class ReviewServiceUpdateDeleteTest {
     @Mock
     private BookService bookService;
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private EventPublisherPort eventPublisher;
 
     @InjectMocks
     private ReviewService reviewService;
@@ -130,9 +130,9 @@ class ReviewServiceUpdateDeleteTest {
         reviewService.deleteReview(10L);
 
         verify(reviewHelpfulRepository).deleteByReviewId(10L);
-        verify(applicationEventPublisher).publishEvent(org.mockito.ArgumentMatchers.argThat(event ->
+        verify(eventPublisher).publish(org.mockito.ArgumentMatchers.argThat(event ->
                 event instanceof ReviewDeletedEvent deleted
-                        && deleted.getReviewId().equals(10L)
+                        && deleted.reviewId().equals(10L)
         ));
         verify(reviewRepository).deleteById(10L);
         verify(bookService).updateBookRatingStats(5L);
