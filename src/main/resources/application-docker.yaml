@@ -1,0 +1,11 @@
+# Activate via Compose: SPRING_PROFILES_ACTIVE=docker
+# Same exposure as local — Prometheus on the Docker network will scrape /actuator/prometheus.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+      show-components: always

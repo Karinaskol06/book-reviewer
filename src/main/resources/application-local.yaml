@@ -1,0 +1,10 @@
+# Activate: SPRING_PROFILES_ACTIVE=local (or --spring.profiles.active=local)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+      show-components: always

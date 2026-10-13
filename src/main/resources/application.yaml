@@ -101,3 +101,41 @@ app:
 elasticsearch:
   host: ${ELASTICSEARCH_HOST:localhost}
   port: ${ELASTICSEARCH_PORT:9200}
+
+# Observability - safe defaults
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        # Prod-safe default: health only. local/docker profiles add info,prometheus,metrics.
+        include: health
+  endpoint:
+    health:
+      # Show component details only when authenticated (prod)
+      show-details: when_authorized
+      probes:
+        enabled: true
+      # DEGRADED (ES down) must not outrank UP for overall aggregation priority incorrectly,
+      # and should map to HTTP 200 so orchestrators do not kill a still-serving app.
+      status:
+        order: DOWN, OUT_OF_SERVICE, DEGRADED, UP, UNKNOWN
+        http-mapping:
+          DEGRADED: 200
+  health:
+    # Custom indicator returns DEGRADED when ES is down (search falls back to PostgreSQL)
+    elasticsearch:
+      enabled: false
+    db:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Book reviewer API
