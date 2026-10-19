@@ -16,7 +16,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#2dd4bf"
           },
           "custom": {
             "drawStyle": "line",
@@ -57,7 +58,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#38bdf8"
           },
           "custom": {
             "drawStyle": "line",
@@ -67,7 +69,53 @@
           },
           "unit": "s"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#38bdf8"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#7dd3fc"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#94a3b8"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -116,7 +164,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#f87171"
           },
           "custom": {
             "drawStyle": "line",
@@ -126,7 +175,38 @@
           },
           "unit": "reqps"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#f87171"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#fbbf24"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -166,7 +246,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#4ade80"
           },
           "custom": {
             "drawStyle": "line",
@@ -176,7 +257,38 @@
           },
           "unit": "bytes"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4ade80"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#64748b"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -216,7 +328,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#2dd4bf"
           },
           "custom": {
             "drawStyle": "line",
@@ -226,7 +339,53 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2dd4bf"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#94a3b8"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#fbbf24"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -275,7 +434,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#2dd4bf"
           },
           "custom": {
             "drawStyle": "line",
@@ -316,7 +476,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#fbbf24"
           },
           "custom": {
             "drawStyle": "line",
@@ -346,7 +507,7 @@
           "refId": "A"
         }
       ],
-      "title": "Search fallback (ES → Postgres)",
+      "title": "Search fallback (ES \u2192 Postgres)",
       "type": "timeseries"
     },
     {
@@ -357,7 +518,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#38bdf8"
           },
           "custom": {
             "drawStyle": "line",
@@ -398,7 +560,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#f87171"
           },
           "custom": {
             "drawStyle": "line",
@@ -439,7 +602,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#fb7185"
           },
           "custom": {
             "drawStyle": "line",
@@ -475,7 +639,12 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["book-reviewer", "spring-boot", "micrometer"],
+  "tags": [
+    "book-reviewer",
+    "spring-boot",
+    "micrometer",
+    "observability"
+  ],
   "templating": {
     "list": []
   },
@@ -485,7 +654,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Book Reviewer — Overview",
+  "title": "Book Reviewer \u2014 Overview",
   "uid": "book-reviewer-overview",
   "version": 1
 }

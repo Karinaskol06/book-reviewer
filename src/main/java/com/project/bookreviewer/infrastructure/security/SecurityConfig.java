@@ -17,12 +17,15 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
+
+import static com.project.bookreviewer.infrastructure.observability.CorrelationIdFilter.HEADER_NAME;
 
 @Configuration
 @EnableWebSecurity
@@ -51,21 +54,33 @@ public class SecurityConfig {
                         .requestMatchers("/uploads-book-reviewer/**").permitAll()
                         .requestMatchers("/images/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        // Actuator: exposure is profile-gated (local/docker). Restrict network on public AWS later.
+                        // Health stays public. Metrics only from private/Docker networks
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/health/**",
-                                "/actuator/info",
                                 "/actuator/prometheus",
                                 "/actuator/metrics",
-                                "/actuator/metrics/**"
-                        ).permitAll()
+                                "/actuator/metrics/**",
+                                "/actuator/info"
+                        ).access(privateNetworkActuatorAccess())
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * Allows Actuator scrape/debug endpoints from localhost and RFC1918 ranges and 
+     * blocking casual public internet access.
+     */
+    private static WebExpressionAuthorizationManager privateNetworkActuatorAccess() {
+        return new WebExpressionAuthorizationManager(
+                "hasIpAddress('127.0.0.1') or hasIpAddress('::1') "
+                        + "or hasIpAddress('10.0.0.0/8') "
+                        + "or hasIpAddress('172.16.0.0/12') "
+                        + "or hasIpAddress('192.168.0.0/16')"
+        );
     }
 
     @Bean
@@ -98,7 +113,7 @@ public class SecurityConfig {
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setExposedHeaders(List.of("Authorization", HEADER_NAME));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
