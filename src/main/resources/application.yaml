@@ -131,6 +131,10 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    # Publish histogram buckets so Grafana can compute p50/p95 via histogram_quantile
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   info:
     env:
       enabled: true

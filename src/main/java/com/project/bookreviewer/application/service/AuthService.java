@@ -7,6 +7,7 @@ import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.domain.port.inbound.AuthUseCase;
 import com.project.bookreviewer.domain.port.outbound.TokenPort;
 import com.project.bookreviewer.domain.port.outbound.UserRepositoryPort;
+import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -26,6 +27,7 @@ public class AuthService implements AuthUseCase {
     private final PasswordEncoder passwordEncoder;
     private final TokenPort tokenPort;
     private final AuthenticationManager authenticationManager;
+    private final BookReviewerMetrics metrics;
 
     @Override
     @Transactional
@@ -58,6 +60,7 @@ public class AuthService implements AuthUseCase {
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             return tokenPort.generateToken(userDetails.getUsername());
         } catch (org.springframework.security.core.AuthenticationException e) {
+            metrics.recordAuthFailure();
             throw new AuthenticationException("Invalid username or password");
         }
     }

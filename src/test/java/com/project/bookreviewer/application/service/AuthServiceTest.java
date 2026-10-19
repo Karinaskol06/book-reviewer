@@ -6,6 +6,7 @@ import com.project.bookreviewer.domain.model.Role;
 import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.domain.port.outbound.TokenPort;
 import com.project.bookreviewer.domain.port.outbound.UserRepositoryPort;
+import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +43,8 @@ class AuthServiceTest {
     private TokenPort tokenPort;
     @Mock
     private AuthenticationManager authenticationManager;
+    @Mock
+    private BookReviewerMetrics metrics;
 
     @InjectMocks
     private AuthService authService;

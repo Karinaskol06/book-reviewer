@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
+import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 
 import java.util.Set;
 
@@ -35,6 +36,8 @@ class ReviewServiceCreateTest {
     private BookService bookService;
     @Mock
     private EventPublisherPort eventPublisher;
+    @Mock
+    private BookReviewerMetrics metrics;
 
     @InjectMocks
     private ReviewService reviewService;

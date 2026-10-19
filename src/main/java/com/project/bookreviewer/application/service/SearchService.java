@@ -8,7 +8,9 @@ import com.project.bookreviewer.domain.port.inbound.SearchUseCase;
 import com.project.bookreviewer.domain.port.outbound.BookRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.BookSearchPort;
 import com.project.bookreviewer.domain.port.outbound.BookSearchPort.BookSearchPage;
+import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 import com.project.bookreviewer.shared.util.NormalizationUtils;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,22 +31,37 @@ public class SearchService implements SearchUseCase {
     private final BookSearchPort bookSearchPort;
     private final BookRepositoryPort bookRepository;
     private final BookMapper bookMapper;
+    private final BookReviewerMetrics metrics;
 
     public Page<BookResponse> searchBooks(String query, Pageable pageable) {
         if (query == null || query.isBlank()) {
             return Page.empty(pageable);
         }
 
-        Optional<BookSearchPage> esPage = bookSearchPort.searchBooks(
-                query,
-                pageable.getPageNumber(),
-                pageable.getPageSize()
-        );
-        if (esPage.isEmpty()) {
-            log.warn("Search backend unavailable, falling back to PostgreSQL search");
-            return fallbackSearch(query, pageable);
+        // Notes the start time, returns a sample object that can be used to stop the timer
+        Timer.Sample sample = metrics.startSearchTimer();
+        String store = BookReviewerMetrics.STORE_ELASTICSEARCH;
+        try {
+            Optional<BookSearchPage> esPage = bookSearchPort.searchBooks(
+                    query,
+                    pageable.getPageNumber(),
+                    pageable.getPageSize()
+            );
+            if (esPage.isEmpty()) {
+                log.warn("Search backend unavailable, falling back to PostgreSQL search");
+                // Records the fallback to PostgreSQL search
+                metrics.recordSearchFallback();
+                // Sets the store to PostgreSQL
+                store = BookReviewerMetrics.STORE_POSTGRESQL;
+                // Performs the fallback search
+                return fallbackSearch(query, pageable);
+            }
+            // Converts the Elasticsearch page to a BookResponse page
+            return toBookResponsePage(esPage.get(), pageable);
+            // Stops the timer and records the latency
+        } finally {
+            metrics.stopSearchTimer(sample, store);
         }
-        return toBookResponsePage(esPage.get(), pageable);
     }
 
     private Page<BookResponse> fallbackSearch(String query, Pageable pageable) {

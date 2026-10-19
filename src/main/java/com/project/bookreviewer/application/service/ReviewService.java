@@ -14,6 +14,7 @@ import com.project.bookreviewer.domain.port.inbound.ReviewUseCase;
 import com.project.bookreviewer.domain.port.outbound.EventPublisherPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewHelpfulRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
+import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,6 +33,7 @@ public class ReviewService implements ReviewUseCase {
     private final ReviewHelpfulRepositoryPort reviewHelpfulRepository;
     private final BookService bookService; // to update book rating cache
     private final EventPublisherPort eventPublisher;
+    private final BookReviewerMetrics metrics;
 
     @Transactional
     public Review createReview(Long userId, Long bookId, CreateReviewRequest request) {
@@ -59,6 +61,7 @@ public class ReviewService implements ReviewUseCase {
         Review saved = reviewRepository.save(review);
         eventPublisher.publish(new ReviewCreatedEvent(saved));
         bookService.updateBookRatingStats(bookId); // recalc and cache
+        metrics.recordReviewCreated();
         return saved;
     }
 

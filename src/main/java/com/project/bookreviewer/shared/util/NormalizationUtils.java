@@ -98,7 +98,7 @@ public final class NormalizationUtils {
             return Set.of();
         }
 
-        // Pull matching aliases from the catalog (DB may store "SCI-FI", "Sci Fi", etc.)
+        // Pull matching aliases from the catalog (DB may store "SCI-FI", "Sci Fi"...)
         Set<String> expanded = new LinkedHashSet<>();
         if (catalog != null) {
             for (String genre : catalog) {

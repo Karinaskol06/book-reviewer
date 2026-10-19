@@ -3,7 +3,7 @@ package com.project.bookreviewer.domain.event;
 import com.project.bookreviewer.domain.model.Book;
 
 /**
- * Raised after a book is persisted. Plain domain event — no Spring types.
+ * Raised after a book is persisted. Plain domain event.
  */
 public record BookCreatedEvent(Book book, Long actorUserId) {
 }

@@ -12,6 +12,7 @@ import com.project.bookreviewer.infrastructure.elasticsearch.document.BookDocume
 import com.project.bookreviewer.infrastructure.elasticsearch.document.ReviewDocument;
 import com.project.bookreviewer.infrastructure.elasticsearch.repository.BookSearchRepository;
 import com.project.bookreviewer.infrastructure.elasticsearch.repository.ReviewSearchRepository;
+import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -21,7 +22,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -31,6 +31,7 @@ public class ElasticsearchSyncListener {
     private final ReviewSearchRepository reviewSearchRepository;
     private final BookRepositoryPort bookRepository;
     private final ReviewRepositoryPort reviewRepository;
+    private final BookReviewerMetrics metrics;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -40,6 +41,8 @@ public class ElasticsearchSyncListener {
             syncBookDocumentFromDatabase(bookId);
             log.info("Book indexed in ES: id={}", bookId);
         } catch (Exception e) {
+            // Records the failure to index the book in Elasticsearch
+            metrics.recordEsSyncFailure(BookReviewerMetrics.EVENT_BOOK_CREATED);
             log.error("Failed to index book in ES: id={}", bookId, e);
         }
     }
@@ -52,6 +55,8 @@ public class ElasticsearchSyncListener {
             syncBookDocumentFromDatabase(bookId);
             log.info("Book updated in ES: id={}", bookId);
         } catch (Exception e) {
+            // Records the failure to update the book in Elasticsearch
+            metrics.recordEsSyncFailure(BookReviewerMetrics.EVENT_BOOK_UPDATED);
             log.error("Failed to update book in ES: id={}", bookId, e);
         }
     }
@@ -76,6 +81,8 @@ public class ElasticsearchSyncListener {
 
             syncBookDocumentFromDatabase(review.getBookId());
         } catch (Exception e) {
+            // Records the failure to index the review in Elasticsearch
+            metrics.recordEsSyncFailure(BookReviewerMetrics.EVENT_REVIEW_CREATED);
             log.error("Failed to index review in ES", e);
         }
     }
