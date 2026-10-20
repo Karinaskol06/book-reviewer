@@ -1,0 +1,29 @@
+groups:
+  - name: book-reviewer
+    rules:
+      # Fires when ~5%+ of HTTP traffic is 5xx for 2 minutes (sustained server errors)
+      - alert: BookReviewerHighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="book-reviewer",status=~"5.."}[2m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count{job="book-reviewer"}[2m])), 0.001)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          application: book-reviewer
+        annotations:
+          summary: "High HTTP 5xx rate on Book Reviewer"
+          description: "More than 5% of requests are 5xx for 2m. Check app logs, Grafana error panel, and recent deploys."
+
+      # Fires when search keeps falling back to PostgreSQL (usually Elasticsearch unhealthy)
+      - alert: BookReviewerSearchFallback
+        expr: sum(rate(bookreviewer_search_fallback_total{job="book-reviewer"}[2m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          application: book-reviewer
+        annotations:
+          summary: "Search falling back to PostgreSQL"
+          description: "Elasticsearch -> Postgres fallback rate is elevated. Check ES health (/actuator/health) and docker compose logs for elasticsearch."

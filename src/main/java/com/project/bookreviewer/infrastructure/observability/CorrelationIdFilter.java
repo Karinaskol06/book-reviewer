@@ -18,6 +18,7 @@ import java.util.UUID;
  * Incoming header is reused when present; otherwise a new UUID is generated.
  */
 @Component
+// Highest precedence to ensure the correlation id is set before any other filters
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
@@ -36,10 +37,12 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
+            // Remove the correlation id from the MDC after the request is processed
             MDC.remove(MDC_KEY);
         }
     }
 
+    // Generates a new correlation id if the incoming one is null or blank
     static String resolveCorrelationId(String incoming) {
         if (incoming == null || incoming.isBlank()) {
             return UUID.randomUUID().toString();

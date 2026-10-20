@@ -10,6 +10,7 @@ import com.project.bookreviewer.domain.model.User;
 import com.project.bookreviewer.domain.port.outbound.ReviewHelpfulRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.ReviewRepositoryPort;
 import com.project.bookreviewer.domain.port.outbound.UserRepositoryPort;
+import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 import com.project.bookreviewer.infrastructure.security.JwtAuthenticationFilter;
 import com.project.bookreviewer.infrastructure.security.ReviewAuthorization;
 import com.project.bookreviewer.infrastructure.security.SecurityUtils;
@@ -79,6 +80,8 @@ class ReviewControllerSecurityTest {
     private BookService bookService;
     @MockBean
     private EventPublisherPort eventPublisher;
+    @MockBean
+    private BookReviewerMetrics metrics;
     @MockBean
     private ReviewMapper reviewMapper;
     @MockBean

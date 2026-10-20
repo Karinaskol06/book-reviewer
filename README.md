@@ -36,6 +36,7 @@ Built as a **portfolio project** focused on **Junior Backend** skills - Spring B
 | **Frontend** | React 19, Vite, React Router (nginx in Docker) |
 | **Build / run** | Maven Wrapper, Docker Compose |
 | **CI** | GitHub Actions |
+| **Observability** | Actuator, Micrometer, Prometheus, Grafana, Alertmanager |
 | **Testing** | JUnit 5, Mockito, Spring Security Test, Testcontainers |
 
 ---
@@ -49,6 +50,7 @@ Built as a **portfolio project** focused on **Junior Backend** skills - Spring B
 - [Environment Variables](#environment-variables)
 - [Available Scripts](#available-scripts)
 - [Testing](#testing)
+- [Observability](#observability)
 - [Continuous Integration](#continuous-integration)
 - [Database & Migrations](#database--migrations)
 - [Deployment](#deployment)
@@ -72,7 +74,7 @@ Built as a **portfolio project** focused on **Junior Backend** skills - Spring B
 
 ## Quick Start (Docker Compose)
 
-Starts **PostgreSQL**, **Elasticsearch**, the **Spring Boot API**, and the **React UI** together.
+Starts **PostgreSQL**, **Elasticsearch**, the **Spring Boot API**, the **React UI**, plus **Prometheus / Alertmanager / Grafana** for local observability.
 
 ### Prerequisites
 
@@ -101,6 +103,9 @@ First build compiles the backend inside Docker (Maven) and the frontend (npm) - 
 | ------- | --- |
 | **Web UI** | [http://localhost:3080](http://localhost:3080) |
 | **API** | [http://localhost:8081](http://localhost:8081) |
+| **Grafana** | [http://localhost:3000](http://localhost:3000) (`admin` / `admin`) |
+| **Prometheus** | [http://localhost:9090](http://localhost:9090) |
+| **Alertmanager** | [http://localhost:9093](http://localhost:9093) |
 | **Postgres** (host) | `localhost:5433` |
 | **Elasticsearch** | [http://localhost:9200](http://localhost:9200) |
 
@@ -242,6 +247,27 @@ Flyway is **disabled** in the default test `application.yaml` so unit/slice test
 | **Testcontainers ITs** | Real **PostgreSQL** (trending, feed, filters, uniqueness) and **Elasticsearch** search |
 
 Docker must be available for Testcontainers-based tests.
+
+---
+
+## Observability
+
+Local Compose includes **Actuator/Micrometer → Prometheus → Grafana** and **Alertmanager**.
+
+| Signal | Where |
+| ------ | ----- |
+| RED + JVM + Hikari + domain metrics | Grafana dashboard **Book Reviewer — Overview** |
+| Alert rules | `docker/prometheus/alerts.yml` |
+| Alert routing (demo UI) | `docker/alertmanager/alertmanager.yml` |
+
+**Alerts (what fires and why):**
+
+| Alert | Severity | Condition |
+| ----- | -------- | --------- |
+| `BookReviewerHighErrorRate` | critical | HTTP 5xx share **> 5%** for **2m** |
+| `BookReviewerSearchFallback` | warning | ES -> Postgres search fallback rate elevated for **2m** |
+
+How to demo fallback → firing: see [`docker/observability/ALERTS.md`](docker/observability/ALERTS.md).
 
 ---
 
