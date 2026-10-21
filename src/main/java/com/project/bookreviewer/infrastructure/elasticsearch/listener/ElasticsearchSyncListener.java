@@ -15,6 +15,7 @@ import com.project.bookreviewer.infrastructure.elasticsearch.repository.ReviewSe
 import com.project.bookreviewer.infrastructure.observability.BookReviewerMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -26,6 +27,7 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "app.elasticsearch.enabled", havingValue = "true", matchIfMissing = true)
 public class ElasticsearchSyncListener {
     private final BookSearchRepository bookSearchRepository;
     private final ReviewSearchRepository reviewSearchRepository;

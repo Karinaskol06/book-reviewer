@@ -74,6 +74,8 @@ application:
     default-cover-url: "/images/book_placeholder.png"
 
 app:
+  elasticsearch:
+    enabled: ${ELASTICSEARCH_ENABLED:true}
   upload:
     dir: ${UPLOAD_DIR:./uploads-book-reviewer}
     avatar:

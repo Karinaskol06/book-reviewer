@@ -1,0 +1,58 @@
+# Phase 1 on a small EC2 disk/RAM: Postgres + app + frontend only.
+# Search uses PostgreSQL fallback (profile no-es). No Elasticsearch image.
+#
+#   docker compose -f docker-compose.aws-lite.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-bookreviewer}
+      POSTGRES_USER: ${DB_USERNAME:-bookreview_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-bookreview_user} -d ${DB_NAME:-bookreviewer}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build: .
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-bookreviewer}
+      DB_USERNAME: ${DB_USERNAME:-bookreview_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SERVER_PORT: 8080
+      SPRING_PROFILES_ACTIVE: docker,no-es
+      ELASTICSEARCH_ENABLED: "false"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      UPLOAD_DIR: /app/uploads-book-reviewer
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - uploads_data:/app/uploads-book-reviewer
+    restart: unless-stopped
+
+  frontend:
+    build: ./bookreviewer-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:
