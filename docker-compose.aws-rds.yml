@@ -1,0 +1,42 @@
+# Phase 2: app + frontend on EC2, database on Amazon RDS (no Postgres container).
+
+services:
+  app:
+    build: .
+    ports:
+      - "8081:8080"
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-bookreviewer}
+      DB_USERNAME: ${DB_USERNAME:-bookreview_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # RDS expects SSL; overrides application.yaml jdbc url
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT:-5432}/${DB_NAME:-bookreviewer}?sslmode=require
+      SERVER_PORT: 8080
+      SPRING_PROFILES_ACTIVE: docker,no-es
+      ELASTICSEARCH_ENABLED: "false"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      STORAGE_TYPE: ${STORAGE_TYPE:-s3}
+      UPLOAD_DIR: /app/uploads-book-reviewer
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      AWS_S3_REGION: ${AWS_S3_REGION:-eu-central-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - uploads_data:/app/uploads-book-reviewer
+    restart: unless-stopped
+
+  frontend:
+    build: ./bookreviewer-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  uploads_data:
