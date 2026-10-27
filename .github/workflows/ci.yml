@@ -77,9 +77,36 @@ jobs:
           script_stop: true
           command_timeout: 40m
           script: |
+            # Bash stric mode (-e - exit on errors, -u - treat unset vars as errors, -o pipefail - fail pipeline on command fails)
             set -euo pipefail
             cd ~/book-reviewer
+            # Download latest commits for main branch
             git fetch origin main
+            # Reset the local main branch to the latest remote main branch (discard local changes)
             git reset --hard origin/main
+            echo "Deploying commit: $(git rev-parse HEAD)"
+            # Rebuild the images if needed and start containers in a bg
             docker compose -f docker-compose.aws-rds.yml up -d --build
             docker compose -f docker-compose.aws-rds.yml ps
+
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8081/actuator/health >/dev/null; then
+                echo "App healthcheck OK"
+                curl -s http://localhost:8081/actuator/health
+                exit 0
+              fi
+              echo "Waiting for app... attempt $i/30"
+              sleep 5
+            done
+
+            # Rollback to previous version if healthcheck fails
+            echo "App healthcheck failed — rolling back to $PREV"
+            docker compose -f docker-compose.aws-rds.yml logs --tail=80 app
+            # Reset the local main branch to the previous commit
+            git reset --hard "$PREV"
+            docker compose -f docker-compose.aws-rds.yml up -d --build
+            docker compose -f docker-compose.aws-rds.yml ps
+            # Confirm previous version comes back
+            sleep 15
+            curl -sf http://localhost:8081/actuator/health || echo "Rollback started but health still not OK, check EC2 manually"
+            exit 1
