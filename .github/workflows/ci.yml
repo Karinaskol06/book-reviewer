@@ -80,11 +80,17 @@ jobs:
             # Bash stric mode (-e - exit on errors, -u - treat unset vars as errors, -o pipefail - fail pipeline on command fails)
             set -euo pipefail
             cd ~/book-reviewer
+
+            # Remember current commit so we can roll back if the new deploy is unhealthy
+            PREV=$(git rev-parse HEAD)
+            echo "Previous deploy commit: $PREV"
+
             # Download latest commits for main branch
             git fetch origin main
             # Reset the local main branch to the latest remote main branch (discard local changes)
             git reset --hard origin/main
             echo "Deploying commit: $(git rev-parse HEAD)"
+
             # Rebuild the images if needed and start containers in a bg
             docker compose -f docker-compose.aws-rds.yml up -d --build
             docker compose -f docker-compose.aws-rds.yml ps

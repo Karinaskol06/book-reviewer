@@ -4,7 +4,8 @@
 
 A full-stack book social app: discover new books, write structured reviews, follow readers, browse an activity feed, join reading clubs, and get recommendations.
 
-Built as a **portfolio project** focused on **Junior Backend** skills - Spring Boot, REST APIs, PostgreSQL/SQL, Flyway, JWT security, testing (including Testcontainers), and a clear **hexagonal (ports & adapters)** layout. A React UI is included so the API can be exercised end-to-end.
+Built as a **portfolio project** focused on **Junior Backend** skills - Spring Boot, REST APIs, PostgreSQL/SQL, Flyway, JWT security, testing (including Testcontainers), and a clear **hexagonal (ports & adapters)** layout. A React UI is included so the API can be exercised end-to-end. 
+The same codebase runs on **AWS** - EC2 + Docker Compose, **RDS** PostgreSQL, **S3** uploads via an IAM instance role, and **GitHub Actions** CD with an actuator healthcheck and automatic git rollback. 
 
 ---
 
@@ -17,8 +18,9 @@ Built as a **portfolio project** focused on **Junior Backend** skills - Spring B
 | Schema & demo data | **Flyway** migrations (`validate` Hibernate mode) |
 | Search & filters | **Elasticsearch** via `BookSearchPort` |
 | Follow / activity feed | Domain events → `EventPublisherPort` → listeners |
-| Covers & avatars | `ObjectStoragePort` (local disk; S3-ready) |
-| Automated checks | Unit tests, security slice tests, **Testcontainers** ITs, **GitHub Actions CI** |
+| Covers & avatars | `ObjectStoragePort` — local disk or **Amazon S3** (instance role) |
+| Cloud deploy | **EC2** + Docker Compose, **RDS** Postgres, **S3**, **GitHub Actions** CD |
+| Automated checks | Unit tests, security slice tests, **Testcontainers** ITs, **CI + deploy** |
 
 ---
 
@@ -32,11 +34,12 @@ Built as a **portfolio project** focused on **Junior Backend** skills - Spring B
 | **Database** | PostgreSQL 16, Flyway |
 | **Search** | Elasticsearch 8 |
 | **Auth** | JWT (JJWT) |
-| **Storage** | Local filesystem (dev); AWS S3 SDK wired for later deploy |
+| **Storage** | Local filesystem (dev) or **Amazon S3** (prod/demo on AWS) |
 | **Frontend** | React 19, Vite, React Router (nginx in Docker) |
 | **Build / run** | Maven Wrapper, Docker Compose |
-| **CI** | GitHub Actions |
-| **Observability** | Actuator, Micrometer, Prometheus, Grafana, Alertmanager |
+| **CI/CD** | GitHub Actions (test → SSH deploy to EC2, healthcheck + rollback) |
+| **AWS** | EC2, Elastic IP, Security Groups, IAM instance role, S3, RDS PostgreSQL |
+| **Observability** | Actuator, Micrometer, Prometheus, Grafana, Alertmanager (local Compose) |
 | **Testing** | JUnit 5, Mockito, Spring Security Test, Testcontainers |
 
 ---
@@ -51,9 +54,11 @@ Built as a **portfolio project** focused on **Junior Backend** skills - Spring B
 - [Available Scripts](#available-scripts)
 - [Testing](#testing)
 - [Observability](#observability)
-- [Continuous Integration](#continuous-integration)
+- [Continuous Integration & Delivery](#continuous-integration--delivery)
 - [Database & Migrations](#database--migrations)
 - [Deployment](#deployment)
+  - [AWS demo architecture](#aws-demo-architecture)
+  - [AWS setup](#aws-setup)
 - [Troubleshooting](#troubleshooting)
 - [Project Structure](#project-structure)
 
@@ -211,8 +216,12 @@ See [`.env.example`](.env.example) for the full list. Common ones:
 | `ELASTICSEARCH_HOST` / `ELASTICSEARCH_PORT` | Search cluster | `localhost` / `9200` |
 | `STORAGE_TYPE` | `local` or `s3` | `local` |
 | `UPLOAD_DIR` | Local upload root | `./uploads-book-reviewer` |
-| `STORAGE_PUBLIC_BASE_URL` | Public base URL when using S3/CDN | empty |
-| `AWS_S3_*` | Bucket/region/credentials when `STORAGE_TYPE=s3` | empty |
+| `STORAGE_PUBLIC_BASE_URL` | Public base URL for S3 objects | empty |
+| `AWS_S3_BUCKET` / `AWS_S3_REGION` | S3 target when `STORAGE_TYPE=s3` | empty / `eu-central-1` |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Optional; **omit on EC2** so the SDK uses the instance role | empty |
+| `ELASTICSEARCH_ENABLED` | Set `false` with profile `no-es` on small AWS hosts | `true` locally |
+
+AWS Compose env template: [`.env.aws.example`](.env.aws.example).
 
 ---
 
@@ -222,6 +231,8 @@ See [`.env.example`](.env.example) for the full list. Common ones:
 | ------- | ----------- |
 | `docker compose up --build` | Full stack (Postgres, ES, API, UI) |
 | `docker compose up postgres elasticsearch -d` | Infra only for local coding |
+| `docker compose -f docker-compose.aws-lite.yml up -d --build` | Small EC2: Postgres in Compose, no Elasticsearch |
+| `docker compose -f docker-compose.aws-rds.yml up -d --build` | EC2 app + frontend, DB on Amazon RDS |
 | `./mvnw spring-boot:run` | Run API on the host |
 | `./mvnw test` | Unit + slice + Testcontainers tests |
 | `./mvnw -DskipTests package` | Build jar to `target/` |
@@ -271,16 +282,21 @@ How to demo fallback → firing: see [`docker/observability/ALERTS.md`](docker/o
 
 ---
 
-## Continuous Integration
+## Continuous Integration & Delivery
 
 GitHub Actions runs on every **push** and **pull request** to `main` (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
-| Job | What it does |
-| --- | ------------ |
-| **Backend** | JDK 21 + `./mvnw -B test` (includes Testcontainers Postgres/Elasticsearch on the runner) |
-| **Frontend** | Node 20 + `npm ci` + production `npm run build` |
+| Job | When | What it does |
+| --- | ---- | ------------ |
+| **Backend** | push + PR | JDK 21 + `./mvnw -B test` (Testcontainers Postgres/Elasticsearch on the runner) |
+| **Frontend** | push + PR | Node 20 + `npm ci` + production `npm run build` |
+| **Deploy to EC2** | push to `main` only | SSH → `git fetch` / `reset --hard` → `docker compose -f docker-compose.aws-rds.yml up -d --build` → poll `/actuator/health` → on failure **rollback** to previous commit |
 
-Jobs run in parallel. The status badge at the top of this README reflects the latest workflow run.
+Backend and frontend run in parallel; deploy waits for both and only runs on `main`.
+
+**GitHub secrets** (deploy job): `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`.
+
+The status badge at the top of this README reflects the latest workflow run.
 
 ---
 
@@ -297,15 +313,73 @@ Migrations live in `src/main/resources/db/migration/`:
 
 Hibernate runs with `ddl-auto: validate` - schema changes go through Flyway, not auto-DDL.
 
+On AWS RDS the JDBC URL uses `sslmode=require` (see `docker-compose.aws-rds.yml`).
+
 ---
 
 ## Deployment
 
-**Supported today:** Docker Compose for a local or demo stack (see [Quick Start](#quick-start-docker-compose)).
+### Local / full stack
 
-**Object storage:** set `STORAGE_TYPE=s3` and the `AWS_S3_*` / `STORAGE_PUBLIC_BASE_URL` variables when moving uploads off the container filesystem.
+Docker Compose for the complete local demo (Postgres + Elasticsearch + API + UI + observability): see [Quick Start](#quick-start-docker-compose).
 
-**In progress:** deployment to **AWS** (production topology, secrets, and hosting are being worked on - this README will be updated when that path is ready). This project is not claiming a finished cloud production setup yet.
+
+
+
+### AWS demo architecture
+
+Portfolio / learning deploy on a single EC2 instance.
+
+```text
+GitHub Actions (main)
+        │ SSH
+        ▼
+   EC2 (Elastic IP)
+   ├── Docker: Spring Boot app  :8081
+   ├── Docker: React (nginx)    :80
+   ├── IAM instance role ──────► S3 bucket (covers / avatars)
+   └── Security Group ─────────► RDS PostgreSQL (private SG, SSL)
+```
+
+| Piece | Role in this project |
+| ----- | -------------------- |
+| **EC2** | Hosts app + frontend containers; Elastic IP for a stable public address |
+| **Security Groups** | SSH limited; app HTTP open for demo; RDS accepts Postgres **only from the EC2 SG** |
+| **IAM instance role** | `s3:PutObject` / `GetObject` / `DeleteObject` on the avatar bucket — **no long-lived access keys** in `.env` |
+| **S3** | `ObjectStoragePort` → `S3ObjectStorageAdapter`; SDK uses `DefaultCredentialsProvider` |
+| **RDS PostgreSQL** | Managed DB; Flyway migrates on app boot; Compose does not run a Postgres container |
+| **GitHub Actions** | Test gate → SSH deploy → healthcheck → automatic rollback |
+
+Elasticsearch is **off** on this path (`SPRING_PROFILES_ACTIVE=docker,no-es`, `ELASTICSEARCH_ENABLED=false`) so a small instance stays within disk/RAM; search falls back to PostgreSQL via the same `BookSearchPort` abstraction.
+
+### Compose files for AWS
+
+| File | Use when |
+| ---- | -------- |
+| [`docker-compose.aws-rds.yml`](docker-compose.aws-rds.yml) | App + frontend on EC2; **RDS** for data, S3 for uploads |
+| [`docker-compose.aws.yml`](docker-compose.aws.yml) | Heavier AWS-shaped stack (includes more services, needs more instance capacity) |
+
+Copy [`.env.aws.example`](.env.aws.example) to `.env` on the instance and set `DB_*`, `JWT_SECRET`, and S3 settings. For RDS, set `DB_HOST` to the RDS endpoint.
+
+```bash
+cp .env.aws.example .env
+docker compose -f docker-compose.aws-rds.yml up -d --build
+curl -sf http://localhost:8081/actuator/health
+```
+
+Public UI: `http://<Elastic-IP>/` (nginx on port 80).
+
+### AWS setup
+
+Done as a learning deploy:
+
+1. **IAM** - created a dedicated console user (with MFA), and an **EC2 instance role** with a least-privilege S3 policy for one avatar/cover bucket.
+2. **EC2** - launched Amazon Linux, installed Docker, associated an **Elastic IP**, and opened Security Group rules for HTTP / app port for the demo. SSH was widened so **GitHub Actions** can deploy (key auth still required).
+3. **S3** - created the bucket, pointed `STORAGE_TYPE=s3` / `STORAGE_PUBLIC_BASE_URL` at it, attached the instance role.
+4. **RDS** - moved Postgres off the instance onto **RDS**, created the `bookreviewer` database, allowed port `5432` only from the EC2 security group, and switched Compose to `docker-compose.aws-rds.yml` with `sslmode=require`.
+5. **GitHub Actions** — stored `EC2_HOST` / `EC2_USER` / `EC2_SSH_KEY` as repo secrets and wired deploy on push to `main`: SSH → pull → rebuild → `/actuator/health` poll → **rollback to the previous commit** if health fails.
+
+
 
 ---
 
