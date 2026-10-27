@@ -59,3 +59,27 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  deploy:
+    name: Deploy to EC2
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          command_timeout: 40m
+          script: |
+            set -euo pipefail
+            cd ~/book-reviewer
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose -f docker-compose.aws-rds.yml up -d --build
+            docker compose -f docker-compose.aws-rds.yml ps
