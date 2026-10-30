@@ -25,11 +25,25 @@ public interface ReadingClubUseCase {
 
     Page<ClubResponse> getPublicClubs(Pageable pageable, Long userId);
 
+    Page<ClubResponse> searchPublicClubs(String query, Pageable pageable, Long userId);
+
     Page<ClubResponse> getUserClubs(Long userId, Pageable pageable);
+
+    Page<ClubResponse> searchUserClubs(Long userId, String query, Pageable pageable);
 
     void joinClub(Long clubId, Long userId);
 
     void leaveClub(Long clubId, Long userId);
+
+    void inviteMember(Long clubId, Long actorId, Long inviteeUserId);
+
+    void acceptInvite(Long clubId, Long userId);
+
+    void declineInvite(Long clubId, Long userId);
+
+    void cancelInvite(Long clubId, Long actorId, Long inviteeUserId);
+
+    List<ClubResponse> getMyInvitations(Long userId);
 
     void approveMembership(Long clubId, Long actorId, Long targetUserId);
 

@@ -1,13 +1,38 @@
 import api from './api'
 
-export const getPublicClubs = async ({ page = 0, size = 12 } = {}) => {
-  const response = await api.get('/clubs', { params: { page, size } })
+export const getPublicClubs = async ({ page = 0, size = 12, q } = {}) => {
+  const response = await api.get('/clubs', {
+    params: { page, size, ...(q?.trim() ? { q: q.trim() } : {}) },
+  })
   return response.data
 }
 
-export const getMyClubs = async ({ page = 0, size = 12 } = {}) => {
-  const response = await api.get('/clubs/my', { params: { page, size } })
+export const getMyClubs = async ({ page = 0, size = 12, q } = {}) => {
+  const response = await api.get('/clubs/my', {
+    params: { page, size, ...(q?.trim() ? { q: q.trim() } : {}) },
+  })
   return response.data
+}
+
+export const getMyInvitations = async () => {
+  const response = await api.get('/clubs/invitations')
+  return response.data || []
+}
+
+export const inviteMember = async (clubId, userId) => {
+  await api.post(`/clubs/${clubId}/invites`, { userId })
+}
+
+export const acceptInvite = async (clubId) => {
+  await api.post(`/clubs/${clubId}/invites/accept`)
+}
+
+export const declineInvite = async (clubId) => {
+  await api.post(`/clubs/${clubId}/invites/decline`)
+}
+
+export const cancelInvite = async (clubId, userId) => {
+  await api.delete(`/clubs/${clubId}/invites/${userId}`)
 }
 
 export const getClub = async (clubId) => {

@@ -4,10 +4,14 @@ import { motion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
 import { searchBooks } from '../services/homeService.js'
+import { searchUsersByUsername } from '../services/userService.js'
 import {
+  acceptInvite,
   approveMember,
+  cancelInvite,
   createPost,
   createReply,
+  declineInvite,
   deleteClub,
   deletePost,
   demoteMember,
@@ -16,6 +20,7 @@ import {
   getClubPosts,
   getPendingMembers,
   getReplies,
+  inviteMember,
   joinClub,
   leaveClub,
   promoteMember,
@@ -51,6 +56,12 @@ const ClubDetailPage = () => {
   const [meetingLink, setMeetingLink] = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({ name: '', description: '', focus: '', isPrivate: false })
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteQuery, setInviteQuery] = useState('')
+  const [inviteHits, setInviteHits] = useState([])
+  const [inviteSearching, setInviteSearching] = useState(false)
+  const [inviteBusyId, setInviteBusyId] = useState(null)
+  const [inviteMessage, setInviteMessage] = useState('')
 
   const membership = club?.userMembership
   const role = membership?.role
@@ -60,6 +71,15 @@ const ClubDetailPage = () => {
   const isMod = (role === 'MODERATOR' || role === 'OWNER') && isActive
   const canDiscuss = isActive || !club?.isPrivate
   const canPost = isActive
+  const hasPendingInvite = status === 'PENDING' && membership?.invitedBy != null
+  const joinRequests = useMemo(
+    () => pending.filter((member) => member.invitedBy == null),
+    [pending],
+  )
+  const outgoingInvites = useMemo(
+    () => pending.filter((member) => member.invitedBy != null),
+    [pending],
+  )
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -111,14 +131,62 @@ const ClubDetailPage = () => {
 
   const membershipLabel = useMemo(() => {
     if (!membership) return 'Not a member'
+    if (hasPendingInvite) return 'Invitation pending'
     if (status === 'PENDING') return 'Join request pending'
     if (status === 'DECLINED') return 'Request declined — you can request again'
     return `${role}`
-  }, [membership, role, status])
+  }, [hasPendingInvite, membership, role, status])
+
+  useEffect(() => {
+    if (!inviteOpen) return undefined
+    const query = inviteQuery.trim()
+    if (!query) {
+      setInviteHits([])
+      return undefined
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setInviteSearching(true)
+        const results = await searchUsersByUsername(query, 8)
+        setInviteHits(results || [])
+      } catch {
+        setInviteHits([])
+      } finally {
+        setInviteSearching(false)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [inviteOpen, inviteQuery])
 
   const handleJoin = async () => {
     await joinClub(clubId)
     await refresh()
+  }
+
+  const handleAcceptClubInvite = async () => {
+    await acceptInvite(clubId)
+    await refresh()
+  }
+
+  const handleDeclineClubInvite = async () => {
+    await declineInvite(clubId)
+    await refresh()
+  }
+
+  const handleSendInvite = async (targetUserId) => {
+    setInviteBusyId(targetUserId)
+    setInviteMessage('')
+    try {
+      await inviteMember(clubId, targetUserId)
+      setInviteMessage('Invite sent.')
+      setInviteQuery('')
+      setInviteHits([])
+      await refresh()
+    } catch (err) {
+      setInviteMessage(err?.response?.data?.message || 'Could not send invite.')
+    } finally {
+      setInviteBusyId(null)
+    }
   }
 
   const handleLeave = async () => {
@@ -232,11 +300,35 @@ const ClubDetailPage = () => {
                 {club.isPrivate ? 'Request to join' : 'Join club'}
               </button>
             )}
+            {hasPendingInvite && (
+              <>
+                <button type="button" className="clubs-primary" onClick={handleAcceptClubInvite}>
+                  Accept invite
+                </button>
+                <button type="button" className="ghost" onClick={handleDeclineClubInvite}>
+                  Decline
+                </button>
+              </>
+            )}
             {status === 'DECLINED' && (
               <button type="button" className="clubs-primary" onClick={handleJoin}>Request again</button>
             )}
             {isActive && !isOwner && (
               <button type="button" className="ghost" onClick={handleLeave}>Leave</button>
+            )}
+            {isMod && club.isPrivate && (
+              <button
+                type="button"
+                className="clubs-primary"
+                onClick={() => {
+                  setInviteOpen(true)
+                  setInviteMessage('')
+                  setInviteQuery('')
+                  setInviteHits([])
+                }}
+              >
+                Invite member
+              </button>
             )}
             {isMod && (
               <button type="button" className="ghost" onClick={() => setEditOpen(true)}>Edit</button>
@@ -415,7 +507,11 @@ const ClubDetailPage = () => {
               <span className="clubs-muted">{posts.length} posts</span>
             </div>
             {!canDiscuss && club.isPrivate && (
-              <p className="club-gate">Posts are visible after your join request is approved.</p>
+              <p className="club-gate">
+                {hasPendingInvite
+                  ? 'Accept the invitation to open the discussion.'
+                  : 'Posts are visible after your join request is approved.'}
+              </p>
             )}
             {canPost && (
               <form className="club-compose" onSubmit={handleCreatePost}>
@@ -573,16 +669,16 @@ const ClubDetailPage = () => {
               {isMod && (
                 <div className="club-pending">
                   <header className="club-people__head">
-                    <h3>Pending requests</h3>
-                    {pending.length > 0 && (
-                      <span className="club-people__count club-people__count--alert">{pending.length}</span>
+                    <h3>Join requests</h3>
+                    {joinRequests.length > 0 && (
+                      <span className="club-people__count club-people__count--alert">{joinRequests.length}</span>
                     )}
                   </header>
-                  {pending.length === 0 ? (
+                  {joinRequests.length === 0 ? (
                     <p className="club-pending__empty">No one is waiting for approval.</p>
                   ) : (
                     <ul className="club-member-list">
-                      {pending.map((member) => {
+                      {joinRequests.map((member) => {
                         const name = member.user?.username || 'Reader'
                         const initial = name.trim().charAt(0).toUpperCase()
                         return (
@@ -609,10 +705,115 @@ const ClubDetailPage = () => {
                   )}
                 </div>
               )}
+
+              {isMod && club.isPrivate && (
+                <div className="club-pending">
+                  <header className="club-people__head">
+                    <h3>Outgoing invites</h3>
+                    {outgoingInvites.length > 0 && (
+                      <span className="club-people__count">{outgoingInvites.length}</span>
+                    )}
+                  </header>
+                  {outgoingInvites.length === 0 ? (
+                    <p className="club-pending__empty">No pending invites. Invite readers to fill the room.</p>
+                  ) : (
+                    <ul className="club-member-list">
+                      {outgoingInvites.map((member) => {
+                        const name = member.user?.username || 'Reader'
+                        const initial = name.trim().charAt(0).toUpperCase()
+                        return (
+                          <li key={member.user?.id} className="club-member club-member--pending">
+                            <div className="club-member__main">
+                              <span className="club-member__avatar" aria-hidden="true">{initial}</span>
+                              <div className="club-member__meta">
+                                <p className="club-member__name">{name}</p>
+                                <p className="club-member__role">Invite sent</p>
+                              </div>
+                            </div>
+                            <div className="club-member-actions">
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={async () => {
+                                  await cancelInvite(clubId, member.user.id)
+                                  await refresh()
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
             </section>
           </aside>
         </div>
       </div>
+
+      {inviteOpen && (
+        <div
+          className="clubs-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="invite-member-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setInviteOpen(false)
+          }}
+        >
+          <div className="clubs-modal__panel clubs-modal__panel--invite">
+            <h2 id="invite-member-title">Invite a member</h2>
+            <p className="clubs-modal__lead">
+              Search by username. They’ll get an invitation they can accept from Clubs.
+            </p>
+            <label>
+              Username
+              <input
+                value={inviteQuery}
+                onChange={(e) => setInviteQuery(e.target.value)}
+                placeholder="Find a reader…"
+                autoFocus
+              />
+            </label>
+            {inviteSearching && <p className="clubs-muted">Searching…</p>}
+            {inviteMessage && <p className="clubs-invite-feedback" role="status">{inviteMessage}</p>}
+            <ul className="clubs-invite-hits">
+              {inviteHits.map((hit) => {
+                const alreadyMember = members.some((m) => Number(m.user?.id) === Number(hit.id))
+                const alreadyPending = pending.some((m) => Number(m.user?.id) === Number(hit.id))
+                const disabled = alreadyMember || alreadyPending || inviteBusyId === hit.id
+                return (
+                  <li key={hit.id}>
+                    <div className="clubs-invite-hit">
+                      <img src={resolveMediaUrl(hit.avatarUrl, '/user-stub.png')} alt="" />
+                      <span>{hit.username}</span>
+                      <button
+                        type="button"
+                        className="clubs-primary"
+                        disabled={disabled}
+                        onClick={() => handleSendInvite(hit.id)}
+                      >
+                        {alreadyMember ? 'Member' : alreadyPending ? 'Pending' : 'Invite'}
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {!inviteSearching && inviteQuery.trim() && inviteHits.length === 0 && (
+              <p className="clubs-muted">No readers matched that username.</p>
+            )}
+            <div className="clubs-modal__actions">
+              <button type="button" className="ghost" onClick={() => setInviteOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editOpen && (
         <div

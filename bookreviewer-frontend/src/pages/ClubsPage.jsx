@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
-import { createClub, getMyClubs, getPublicClubs } from '../services/clubService.js'
+import {
+  acceptInvite,
+  createClub,
+  declineInvite,
+  getMyClubs,
+  getMyInvitations,
+  getPublicClubs,
+} from '../services/clubService.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import './ClubsPage.css'
 
@@ -10,7 +17,11 @@ const ClubsPage = () => {
   const navigate = useNavigate()
   const [tab, setTab] = useState('discover')
   const [clubs, setClubs] = useState([])
+  const [invitations, setInvitations] = useState([])
+  const [query, setQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [inviteBusyId, setInviteBusyId] = useState(null)
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -21,12 +32,24 @@ const ClubsPage = () => {
     isPrivate: false,
   })
 
-  const load = async () => {
+  const loadInvitations = async () => {
+    try {
+      setInvitations(await getMyInvitations())
+    } catch {
+      setInvitations([])
+    }
+  }
+
+  const load = async (searchQuery = appliedQuery) => {
     setLoading(true)
     setError('')
     try {
-      const data = tab === 'mine' ? await getMyClubs() : await getPublicClubs()
+      const data =
+        tab === 'mine'
+          ? await getMyClubs({ q: searchQuery })
+          : await getPublicClubs({ q: searchQuery })
       setClubs(data?.content || data || [])
+      await loadInvitations()
     } catch (err) {
       setError(err?.response?.data?.message || 'Could not load clubs.')
       setClubs([])
@@ -36,8 +59,17 @@ const ClubsPage = () => {
   }
 
   useEffect(() => {
-    load()
-  }, [tab])
+    load(appliedQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, appliedQuery])
+
+  useEffect(() => {
+    const trimmed = query.trim()
+    const timer = setTimeout(() => {
+      setAppliedQuery(trimmed)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [query])
 
   const handleCreate = async (event) => {
     event.preventDefault()
@@ -59,6 +91,37 @@ const ClubsPage = () => {
       setSaving(false)
     }
   }
+
+  const handleAcceptInvite = async (clubId) => {
+    setInviteBusyId(clubId)
+    try {
+      await acceptInvite(clubId)
+      await load()
+      navigate(`/clubs/${clubId}`)
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Could not accept invite.')
+    } finally {
+      setInviteBusyId(null)
+    }
+  }
+
+  const handleDeclineInvite = async (clubId) => {
+    setInviteBusyId(clubId)
+    try {
+      await declineInvite(clubId)
+      await loadInvitations()
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Could not decline invite.')
+    } finally {
+      setInviteBusyId(null)
+    }
+  }
+
+  const emptyMessage = appliedQuery
+    ? `No clubs match “${appliedQuery}”.`
+    : tab === 'mine'
+      ? 'Your membership shelf is empty. Discover a club or create your own.'
+      : 'No public clubs yet — be the first host.'
 
   return (
     <AppChrome className="clubs-shell">
@@ -88,6 +151,46 @@ const ClubsPage = () => {
           </div>
         </section>
 
+        {invitations.length > 0 && (
+          <section className="clubs-invites" aria-labelledby="club-invites-title">
+            <div className="clubs-invites__head">
+              <h3 id="club-invites-title">Invitations</h3>
+              <span className="clubs-invites__count">{invitations.length}</span>
+            </div>
+            <ul className="clubs-invites__list">
+              {invitations.map((club) => (
+                <li key={club.id} className="clubs-invite-card">
+                  <div>
+                    <p className="clubs-invite-card__name">{club.name}</p>
+                    {club.focus && <p className="clubs-invite-card__focus">{club.focus}</p>}
+                    <p className="clubs-invite-card__meta">
+                      Private club · {club.memberCount ?? 0} members
+                    </p>
+                  </div>
+                  <div className="clubs-invite-card__actions">
+                    <button
+                      type="button"
+                      className="clubs-primary"
+                      disabled={inviteBusyId === club.id}
+                      onClick={() => handleAcceptInvite(club.id)}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={inviteBusyId === club.id}
+                      onClick={() => handleDeclineInvite(club.id)}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <div className="clubs-toolbar">
           <div className="clubs-tabs" role="tablist" aria-label="Club lists">
             <button
@@ -109,9 +212,16 @@ const ClubsPage = () => {
               My clubs
             </button>
           </div>
-          <p className="clubs-toolbar__hint">
-            {tab === 'discover' ? 'Public clubs open to every reader' : 'Clubs you own or joined'}
-          </p>
+          <label className="clubs-search">
+            <span className="visually-hidden">Search clubs</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={tab === 'mine' ? 'Search my clubs…' : 'Search public clubs…'}
+              aria-label={tab === 'mine' ? 'Search my clubs' : 'Search public clubs'}
+            />
+          </label>
         </div>
 
         {error && <p className="clubs-error" role="alert">{error}</p>}
@@ -126,14 +236,12 @@ const ClubsPage = () => {
 
         {!loading && clubs.length === 0 && (
           <div className="clubs-empty">
-            <p>
-              {tab === 'mine'
-                ? 'Your membership shelf is empty. Discover a club or create your own.'
-                : 'No public clubs yet — be the first host.'}
-            </p>
-            <button type="button" className="clubs-primary" onClick={() => setShowCreate(true)}>
-              Create club
-            </button>
+            <p>{emptyMessage}</p>
+            {!appliedQuery && (
+              <button type="button" className="clubs-primary" onClick={() => setShowCreate(true)}>
+                Create club
+              </button>
+            )}
           </div>
         )}
 
@@ -223,7 +331,7 @@ const ClubsPage = () => {
                 checked={form.isPrivate}
                 onChange={(e) => setForm((prev) => ({ ...prev, isPrivate: e.target.checked }))}
               />
-              Private (join requests need approval)
+              Private (members join by invite or approved request)
             </label>
             <div className="clubs-modal__actions">
               <button type="button" className="ghost" onClick={() => setShowCreate(false)}>

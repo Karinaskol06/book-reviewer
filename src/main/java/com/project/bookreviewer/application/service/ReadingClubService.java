@@ -135,14 +135,33 @@ public class ReadingClubService implements ReadingClubUseCase {
         return clubRepository.findAllPublic(pageable).map(club -> getClubDetails(club.getId(), userId));
     }
 
+    @Transactional(readOnly = true)
+    public Page<ClubResponse> searchPublicClubs(String query, Pageable pageable, Long userId) {
+        if (query == null || query.isBlank()) {
+            return getPublicClubs(pageable, userId);
+        }
+        return clubRepository.searchPublic(query.trim(), pageable)
+                .map(club -> getClubDetails(club.getId(), userId));
+    }
+
     public Page<ClubResponse> getUserClubs(Long userId, Pageable pageable) {
-        List<ClubResponse> responses = clubRepository.findByMemberUserId(userId).stream()
+        return pageResponses(clubRepository.findByMemberUserId(userId).stream()
                 .map(club -> getClubDetails(club.getId(), userId))
-                .collect(Collectors.toList());
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), responses.size());
-        List<ClubResponse> pageContent = start >= responses.size() ? List.of() : responses.subList(start, end);
-        return new PageImpl<>(pageContent, pageable, responses.size());
+                .collect(Collectors.toList()), pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ClubResponse> searchUserClubs(Long userId, String query, Pageable pageable) {
+        List<ReadingClub> clubs = clubRepository.findByMemberUserId(userId);
+        if (query != null && !query.isBlank()) {
+            String needle = query.trim().toLowerCase();
+            clubs = clubs.stream()
+                    .filter(club -> matchesClubQuery(club, needle))
+                    .collect(Collectors.toList());
+        }
+        return pageResponses(clubs.stream()
+                .map(club -> getClubDetails(club.getId(), userId))
+                .collect(Collectors.toList()), pageable);
     }
 
     @Transactional
@@ -192,6 +211,82 @@ public class ReadingClubService implements ReadingClubUseCase {
         }
 
         membershipRepository.deleteByClubIdAndUserId(clubId, userId);
+    }
+
+    @Transactional
+    public void inviteMember(Long clubId, Long actorId, Long inviteeUserId) {
+        ReadingClub club = getClub(clubId);
+        validateActiveRole(clubId, actorId, ClubRole.OWNER, ClubRole.MODERATOR);
+
+        if (!Boolean.TRUE.equals(club.getIsPrivate())) {
+            throw new IllegalStateException("Invites are only available for private clubs");
+        }
+        if (actorId.equals(inviteeUserId)) {
+            throw new IllegalStateException("Cannot invite yourself");
+        }
+
+        userService.getUserById(inviteeUserId);
+
+        var existing = membershipRepository.findByClubIdAndUserId(clubId, inviteeUserId);
+        if (existing.isPresent()) {
+            ClubMembership membership = existing.get();
+            if (membership.getStatus() == ClubMembershipStatus.ACTIVE
+                    || membership.getStatus() == ClubMembershipStatus.PENDING) {
+                throw new IllegalStateException("User is already a member or has a pending membership");
+            }
+            if (membership.getStatus() == ClubMembershipStatus.DECLINED) {
+                membershipRepository.save(ClubMembership.builder()
+                        .id(membership.getId())
+                        .clubId(membership.getClubId())
+                        .userId(membership.getUserId())
+                        .role(ClubRole.MEMBER)
+                        .status(ClubMembershipStatus.PENDING)
+                        .invitedBy(actorId)
+                        .joinedAt(membership.getJoinedAt())
+                        .build());
+                return;
+            }
+            throw new IllegalStateException("User cannot be invited with current membership status");
+        }
+
+        membershipRepository.save(ClubMembership.builder()
+                .clubId(clubId)
+                .userId(inviteeUserId)
+                .role(ClubRole.MEMBER)
+                .status(ClubMembershipStatus.PENDING)
+                .invitedBy(actorId)
+                .build());
+        log.info("Club invite sent: clubId={}, invitee={}, by={}", clubId, inviteeUserId, actorId);
+    }
+
+    @Transactional
+    public void acceptInvite(Long clubId, Long userId) {
+        ClubMembership membership = requirePendingInvite(clubId, userId);
+        membershipRepository.save(withStatus(membership, ClubMembershipStatus.ACTIVE));
+    }
+
+    @Transactional
+    public void declineInvite(Long clubId, Long userId) {
+        ClubMembership membership = requirePendingInvite(clubId, userId);
+        membershipRepository.save(withStatus(membership, ClubMembershipStatus.DECLINED));
+    }
+
+    @Transactional
+    public void cancelInvite(Long clubId, Long actorId, Long inviteeUserId) {
+        validateActiveRole(clubId, actorId, ClubRole.OWNER, ClubRole.MODERATOR);
+        ClubMembership membership = requireMembership(clubId, inviteeUserId);
+        if (membership.getStatus() != ClubMembershipStatus.PENDING || membership.getInvitedBy() == null) {
+            throw new IllegalStateException("No outgoing invite found for this user");
+        }
+        membershipRepository.deleteByClubIdAndUserId(clubId, inviteeUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ClubResponse> getMyInvitations(Long userId) {
+        return membershipRepository.findByUserIdAndStatus(userId, ClubMembershipStatus.PENDING).stream()
+                .filter(m -> m.getInvitedBy() != null)
+                .map(m -> getClubDetails(m.getClubId(), userId))
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -326,6 +421,31 @@ public class ReadingClubService implements ReadingClubUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Membership not found"));
     }
 
+    private ClubMembership requirePendingInvite(Long clubId, Long userId) {
+        ClubMembership membership = requireMembership(clubId, userId);
+        if (membership.getStatus() != ClubMembershipStatus.PENDING || membership.getInvitedBy() == null) {
+            throw new IllegalStateException("No pending invite found for this club");
+        }
+        return membership;
+    }
+
+    private static boolean matchesClubQuery(ReadingClub club, String needle) {
+        return containsIgnoreCase(club.getName(), needle)
+                || containsIgnoreCase(club.getFocus(), needle)
+                || containsIgnoreCase(club.getDescription(), needle);
+    }
+
+    private static boolean containsIgnoreCase(String value, String needle) {
+        return value != null && value.toLowerCase().contains(needle);
+    }
+
+    private static Page<ClubResponse> pageResponses(List<ClubResponse> responses, Pageable pageable) {
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), responses.size());
+        List<ClubResponse> pageContent = start >= responses.size() ? List.of() : responses.subList(start, end);
+        return new PageImpl<>(pageContent, pageable, responses.size());
+    }
+
     private static ClubMembership withStatus(ClubMembership membership, ClubMembershipStatus status) {
         return ClubMembership.builder()
                 .id(membership.getId())
@@ -333,6 +453,7 @@ public class ReadingClubService implements ReadingClubUseCase {
                 .userId(membership.getUserId())
                 .role(membership.getRole())
                 .status(status)
+                .invitedBy(membership.getInvitedBy())
                 .joinedAt(membership.getJoinedAt())
                 .build();
     }
@@ -344,6 +465,7 @@ public class ReadingClubService implements ReadingClubUseCase {
                 .userId(membership.getUserId())
                 .role(role)
                 .status(membership.getStatus())
+                .invitedBy(membership.getInvitedBy())
                 .joinedAt(membership.getJoinedAt())
                 .build();
     }

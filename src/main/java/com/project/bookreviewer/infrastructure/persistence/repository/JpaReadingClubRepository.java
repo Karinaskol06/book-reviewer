@@ -13,9 +13,19 @@ import java.util.List;
 @Repository
 public interface JpaReadingClubRepository extends JpaRepository<ReadingClubEntity, Long> {
 
-    // Alternative using @Query if the method name doesn't work
     @Query("SELECT c FROM ReadingClubEntity c WHERE c.isPrivate = false")
     Page<ReadingClubEntity> findAllPublicClubs(Pageable pageable);
+
+    @Query("""
+            SELECT c FROM ReadingClubEntity c
+            WHERE c.isPrivate = false
+              AND (
+                   LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR LOWER(COALESCE(c.focus, '')) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR LOWER(COALESCE(c.description, '')) LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+            """)
+    Page<ReadingClubEntity> searchPublicClubs(@Param("query") String query, Pageable pageable);
 
     // Find clubs created by a specific user
     List<ReadingClubEntity> findByCreatedBy(Long userId);

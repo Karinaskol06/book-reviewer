@@ -12,5 +12,6 @@ public class ClubMembership {
     private Long userId;
     private ClubRole role;
     private ClubMembershipStatus status;
+    private Long invitedBy;
     private LocalDateTime joinedAt;
 }

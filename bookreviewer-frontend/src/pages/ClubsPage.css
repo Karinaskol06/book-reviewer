@@ -87,7 +87,157 @@
   flex-wrap: wrap;
 }
 
-.clubs-toolbar__hint {
+.clubs-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.clubs-search input {
+  width: 100%;
+  border: 1px solid rgba(2, 40, 89, 0.15);
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  background: rgba(255, 249, 238, 0.9);
+  color: var(--dark-1);
+}
+
+.clubs-search input:focus {
+  outline: 2px solid rgba(116, 146, 131, 0.55);
+  outline-offset: 1px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.clubs-invites {
+  margin-bottom: 1.35rem;
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  background: rgba(255, 249, 238, 0.88);
+  border: 1px solid rgba(2, 40, 89, 0.1);
+}
+
+.clubs-invites__head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.clubs-invites__head h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.clubs-invites__count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--soft);
+  color: #fff9ee;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.clubs-invites__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.clubs-invite-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(2, 40, 89, 0.08);
+}
+
+.clubs-invite-card__name {
+  font-weight: 700;
+  margin: 0;
+}
+
+.clubs-invite-card__focus {
+  margin: 0.2rem 0 0;
+  color: var(--soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.clubs-invite-card__meta {
+  margin: 0.25rem 0 0;
+  color: var(--dark-2);
+  font-size: 0.82rem;
+}
+
+.clubs-invite-card__actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.clubs-modal__panel--invite {
+  width: min(520px, 100%);
+}
+
+.clubs-invite-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.clubs-invite-hit {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(2, 40, 89, 0.08);
+}
+
+.clubs-invite-hit img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.clubs-invite-hit span {
+  flex: 1;
+  font-weight: 600;
+}
+
+.clubs-invite-feedback {
+  color: var(--soft);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.clubs-muted {
   color: var(--dark-2);
   font-size: 0.9rem;
 }

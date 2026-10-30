@@ -100,6 +100,7 @@ public class ClubMembershipRepositoryAdapter implements ClubMembershipRepository
                 .userId(domain.getUserId())
                 .role(domain.getRole())
                 .status(domain.getStatus())
+                .invitedBy(domain.getInvitedBy())
                 .joinedAt(domain.getJoinedAt())
                 .build();
     }
@@ -111,6 +112,7 @@ public class ClubMembershipRepositoryAdapter implements ClubMembershipRepository
                 .userId(entity.getUserId())
                 .role(entity.getRole())
                 .status(entity.getStatus())
+                .invitedBy(entity.getInvitedBy())
                 .joinedAt(entity.getJoinedAt())
                 .build();
     }

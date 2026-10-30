@@ -12,6 +12,7 @@ public interface ReadingClubRepositoryPort {
     Optional<ReadingClub> findById(Long id);
     Page<ReadingClub> findAll(Pageable pageable);
     Page<ReadingClub> findAllPublic(Pageable pageable);
+    Page<ReadingClub> searchPublic(String query, Pageable pageable);
     List<ReadingClub> findByMemberUserId(Long userId);
     List<ReadingClub> findByOwnerUserId(Long userId);
     void deleteById(Long id);

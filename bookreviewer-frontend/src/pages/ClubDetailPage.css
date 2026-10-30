@@ -22,7 +22,11 @@
   padding: 1.35rem 1.4rem;
   border-radius: 22px;
   background:
-    linear-gradient(145deg, rgba(255, 249, 238, 0.95), rgba(243, 228, 204, 0.7)),
+    linear-gradient(
+      145deg,
+      rgba(255, 249, 238, 0.95),
+      rgba(243, 228, 204, 0.7)
+    ),
     radial-gradient(circle at 0% 0%, rgba(44, 82, 115, 0.12), transparent 40%);
   border: 1px solid rgba(2, 40, 89, 0.08);
 }
@@ -33,7 +37,7 @@
   border-radius: 18px;
   display: grid;
   place-items: center;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-size: 2rem;
   color: #fff9ee;
   background: linear-gradient(145deg, #022859, #2c5273);
@@ -41,7 +45,7 @@
 }
 
 .club-masthead__copy h2 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-size: clamp(1.8rem, 3vw, 2.4rem);
   line-height: 1.1;
   margin: 0;
@@ -82,6 +86,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+  margin-top: 1rem;
 }
 
 .club-pill {
@@ -121,7 +126,10 @@
 
 .club-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(250px, 300px);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(
+      250px,
+      300px
+    );
   gap: 1.15rem;
   align-items: start;
 }
@@ -140,7 +148,7 @@
 }
 
 .club-panel h3 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0;
@@ -178,7 +186,7 @@
 
 .club-shelf-empty__title,
 .club-meeting-card__empty {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--dark-1);
@@ -187,7 +195,7 @@
 }
 
 .club-shelf-empty__hint {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--dark-2);
@@ -232,7 +240,7 @@
 }
 
 .club-book__title {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--dark-1);
@@ -241,7 +249,7 @@
 }
 
 .club-book__author {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--dark-2);
@@ -250,7 +258,7 @@
 }
 
 .club-book__cta {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--soft);
@@ -267,7 +275,7 @@
 }
 
 .club-meeting-card__label {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -277,7 +285,7 @@
 }
 
 .club-meeting-card__value {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--dark-1);
@@ -298,7 +306,7 @@
 
 .club-meeting-link {
   display: inline-block;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--dark-1);
@@ -320,7 +328,7 @@
 }
 
 .club-mod-block__label {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -341,7 +349,7 @@
   border: 1px solid rgba(2, 40, 89, 0.14);
   border-radius: 12px;
   padding: 0.6rem 0.75rem;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.88rem;
   background: #fff;
   color: var(--dark-1);
@@ -349,7 +357,7 @@
 
 .club-search-row .ghost {
   flex-shrink: 0;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.78rem;
   padding: 0.45rem 0.75rem !important;
 }
@@ -358,7 +366,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--dark-2);
@@ -372,7 +380,7 @@
 .club-mod-block__save {
   align-self: flex-start;
   margin-top: 0.2rem;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.82rem;
   padding: 0.55rem 0.95rem;
 }
@@ -405,14 +413,14 @@
 }
 
 .club-book-hits__title {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--dark-1);
 }
 
 .club-book-hits__author {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--dark-2);
@@ -500,7 +508,7 @@
 }
 
 .club-people__count {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--dark-2);
@@ -555,7 +563,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
   color: #fff9ee;
@@ -576,7 +584,7 @@
 }
 
 .club-member__name {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--dark-1);
@@ -599,7 +607,7 @@
 }
 
 .club-member__role {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--dark-2);
@@ -623,7 +631,7 @@
 
 .club-member-actions .ghost,
 .club-member-actions .clubs-primary {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.78rem;
   padding: 0.4rem 0.7rem !important;
   min-height: 2rem;
@@ -636,7 +644,7 @@
 }
 
 .club-pending__empty {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   font-size: 0.9rem;
   line-height: 1.45;
   color: var(--dark-2);
@@ -647,7 +655,7 @@
 .clubs-muted {
   color: var(--dark-2);
   font-size: 0.9rem;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
 }
 
 @media (max-width: 1040px) {

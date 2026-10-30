@@ -12,5 +12,6 @@ public class ClubMembershipResponse {
     private ReviewResponse.ReviewUserDto user;
     private String role;
     private String status;
+    private Long invitedBy;
     private LocalDateTime joinedAt;
 }

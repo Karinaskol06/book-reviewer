@@ -1,6 +1,7 @@
 package com.project.bookreviewer.infrastructure.web.controller;
 
 import com.project.bookreviewer.application.dto.request.CreateClubRequest;
+import com.project.bookreviewer.application.dto.request.InviteMemberRequest;
 import com.project.bookreviewer.application.dto.request.UpdateClubRequest;
 import com.project.bookreviewer.application.dto.response.ClubMembershipResponse;
 import com.project.bookreviewer.application.dto.response.ClubResponse;
@@ -36,6 +37,28 @@ public class ReadingClubController {
                 .body(clubUseCase.getClubDetails(club.getId(), userId));
     }
 
+    @GetMapping
+    public ResponseEntity<Page<ClubResponse>> getPublicClubs(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 12, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Long userId = securityUtils.getCurrentUserIdOrNull();
+        return ResponseEntity.ok(clubUseCase.searchPublicClubs(q, pageable, userId));
+    }
+
+    @GetMapping("/my")
+    public ResponseEntity<Page<ClubResponse>> getMyClubs(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 12, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Long userId = securityUtils.getCurrentUserId();
+        return ResponseEntity.ok(clubUseCase.searchUserClubs(userId, q, pageable));
+    }
+
+    @GetMapping("/invitations")
+    public ResponseEntity<List<ClubResponse>> getMyInvitations() {
+        Long userId = securityUtils.getCurrentUserId();
+        return ResponseEntity.ok(clubUseCase.getMyInvitations(userId));
+    }
+
     @GetMapping("/{clubId}")
     public ResponseEntity<ClubResponse> getClub(@PathVariable Long clubId) {
         Long userId = securityUtils.getCurrentUserIdOrNull();
@@ -58,25 +81,37 @@ public class ReadingClubController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping
-    public ResponseEntity<Page<ClubResponse>> getPublicClubs(
-            @PageableDefault(size = 12, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Long userId = securityUtils.getCurrentUserIdOrNull();
-        return ResponseEntity.ok(clubUseCase.getPublicClubs(pageable, userId));
-    }
-
-    @GetMapping("/my")
-    public ResponseEntity<Page<ClubResponse>> getMyClubs(
-            @PageableDefault(size = 12, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Long userId = securityUtils.getCurrentUserId();
-        return ResponseEntity.ok(clubUseCase.getUserClubs(userId, pageable));
-    }
-
     @PostMapping("/{clubId}/join")
     public ResponseEntity<Void> joinClub(@PathVariable Long clubId) {
         Long userId = securityUtils.getCurrentUserId();
         clubUseCase.joinClub(clubId, userId);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{clubId}/invites")
+    public ResponseEntity<Void> inviteMember(
+            @PathVariable Long clubId,
+            @Valid @RequestBody InviteMemberRequest request) {
+        clubUseCase.inviteMember(clubId, securityUtils.getCurrentUserId(), request.getUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PostMapping("/{clubId}/invites/accept")
+    public ResponseEntity<Void> acceptInvite(@PathVariable Long clubId) {
+        clubUseCase.acceptInvite(clubId, securityUtils.getCurrentUserId());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{clubId}/invites/decline")
+    public ResponseEntity<Void> declineInvite(@PathVariable Long clubId) {
+        clubUseCase.declineInvite(clubId, securityUtils.getCurrentUserId());
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{clubId}/invites/{userId}")
+    public ResponseEntity<Void> cancelInvite(@PathVariable Long clubId, @PathVariable Long userId) {
+        clubUseCase.cancelInvite(clubId, securityUtils.getCurrentUserId(), userId);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{clubId}/leave")

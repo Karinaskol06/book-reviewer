@@ -40,6 +40,11 @@ public class ReadingClubRepositoryAdapter implements ReadingClubRepositoryPort {
     }
 
     @Override
+    public Page<ReadingClub> searchPublic(String query, Pageable pageable) {
+        return jpaRepo.searchPublicClubs(query, pageable).map(this::mapToDomain);
+    }
+
+    @Override
     public List<ReadingClub> findByMemberUserId(Long userId) {
         return jpaRepo.findActiveClubsByUserId(userId).stream()
                 .map(this::mapToDomain)
