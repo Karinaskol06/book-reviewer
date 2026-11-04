@@ -48,4 +48,12 @@ public interface JpaActivityEventRepository extends JpaRepository<ActivityEventE
     @Transactional
     @Query("DELETE FROM ActivityEventEntity e WHERE e.actorId = :actorId AND e.targetUserId = :targetUserId")
     void deleteByActorIdAndTargetUserId(@Param("actorId") Long actorId, @Param("targetUserId") Long targetUserId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query("DELETE FROM ActivityEventEntity e WHERE e.actorId = :actorId AND e.type = :type " +
+            "AND e.additionalData = :additionalData")
+    void deleteByActorIdAndTypeAndAdditionalData(@Param("actorId") Long actorId,
+                                                 @Param("type") ActivityType type,
+                                                 @Param("additionalData") String additionalData);
 }

@@ -54,6 +54,33 @@ class FollowUnfollowPersistenceTest {
 
     @Test
     @Transactional
+    void deleteFollowActivities_removesOnlyThatFollowCard() {
+        // "User 1 started following user 2" in the feeds of 7 and 8, plus unrelated rows that must survive.
+        for (Long reader : new Long[]{7L, 8L}) {
+            activityEventRepositoryAdapter.save(com.project.bookreviewer.domain.model.ActivityEvent.builder()
+                    .actorId(1L).targetUserId(reader).type(ActivityType.FOLLOWED_USER)
+                    .additionalData(com.project.bookreviewer.domain.model.ActivityEvent.followedUserData(2L))
+                    .build());
+        }
+        activityEventRepositoryAdapter.save(com.project.bookreviewer.domain.model.ActivityEvent.builder()
+                .actorId(1L).targetUserId(7L).type(ActivityType.FOLLOWED_USER)
+                .additionalData(com.project.bookreviewer.domain.model.ActivityEvent.followedUserData(3L))
+                .build());
+        activityEventRepositoryAdapter.save(com.project.bookreviewer.domain.model.ActivityEvent.builder()
+                .actorId(1L).targetUserId(7L).type(ActivityType.REVIEWED).bookId(10L).reviewId(55L)
+                .build());
+
+        activityEventRepositoryAdapter.deleteFollowActivities(1L, 2L);
+
+        assertThat(jpaActivityEventRepository.findAll())
+                .extracting(ActivityEventEntity::getType, ActivityEventEntity::getAdditionalData)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(ActivityType.FOLLOWED_USER, "{\"targetUserId\": 3}"),
+                        org.assertj.core.groups.Tuple.tuple(ActivityType.REVIEWED, null));
+    }
+
+    @Test
+    @Transactional
     void unfollowStyleCleanup_removesFollowAndFeedEvents() {
         jpaFollowRepository.save(FollowEntity.builder()
                 .followerId(1L)

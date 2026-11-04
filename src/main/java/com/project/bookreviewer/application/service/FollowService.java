@@ -69,6 +69,12 @@ public class FollowService implements FollowUseCase {
             log.warn("Follow removed for follower={} following={}, but feed cleanup failed: {}",
                     followerId, followingId, ex.getMessage());
         }
+        try {
+            activityRepository.deleteFollowActivities(followerId, followingId);
+        } catch (RuntimeException ex) {
+            log.warn("Follow removed for follower={} following={}, but follow-card cleanup failed: {}",
+                    followerId, followingId, ex.getMessage());
+        }
     }
 
     public boolean isFollowing(Long followerId, Long followingId) {

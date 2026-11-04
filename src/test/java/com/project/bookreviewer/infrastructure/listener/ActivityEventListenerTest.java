@@ -53,13 +53,36 @@ class ActivityEventListenerTest {
     }
 
     @Test
-    void handleFollowCreated_doesNotWriteFeedEvents() {
-        FollowCreatedEvent event = new FollowCreatedEvent(1L, 2L);
+    void handleFollowCreated_writesFollowCardForEachFollowerOfTheActor() {
+        // User 1 follows user 2; users 7 and 8 follow user 1.
+        when(followRepository.findFollowers(1L)).thenReturn(List.of(
+                Follow.builder().followerId(7L).followingId(1L).build(),
+                Follow.builder().followerId(8L).followingId(1L).build()
+        ));
 
-        activityEventListener.handleFollowCreated(event);
+        activityEventListener.handleFollowCreated(new FollowCreatedEvent(1L, 2L));
+
+        ArgumentCaptor<ActivityEvent> captor = ArgumentCaptor.forClass(ActivityEvent.class);
+        verify(activityRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues()).extracting(ActivityEvent::getTargetUserId).containsExactly(7L, 8L);
+        assertThat(captor.getAllValues()).allSatisfy(saved -> {
+            assertThat(saved.getActorId()).isEqualTo(1L);
+            assertThat(saved.getType()).isEqualTo(ActivityType.FOLLOWED_USER);
+            assertThat(saved.getAdditionalData()).isEqualTo("{\"targetUserId\": 2}");
+            assertThat(saved.getBookId()).isNull();
+        });
+    }
+
+    @Test
+    void handleFollowCreated_skipsTheFollowedUsersOwnFeed() {
+        // User 2 already follows user 1, so they would otherwise see "user 1 started following user 2".
+        when(followRepository.findFollowers(1L)).thenReturn(List.of(
+                Follow.builder().followerId(2L).followingId(1L).build()
+        ));
+
+        activityEventListener.handleFollowCreated(new FollowCreatedEvent(1L, 2L));
 
         verify(activityRepository, never()).save(any());
-        verify(followRepository, never()).findFollowers(any());
     }
 
     @Test

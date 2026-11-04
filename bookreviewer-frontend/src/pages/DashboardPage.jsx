@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, useMotionValue, useReducedMotion, useSpring } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import SearchSuggest from '../components/search/SearchSuggest.jsx'
+import HeroShowcase from '../components/home/HeroShowcase.jsx'
 import { resolveMediaUrl } from '../utils/media.js'
 import './DashboardPage.css'
 import { getCollectionShelves, getGenres, getTrendingBooks } from '../services/homeService.js'
@@ -58,6 +59,8 @@ const DashboardPage = () => {
   const MotionDiv = motion.div
   const MotionArticle = motion.article
   const MotionButton = motion.button
+  const MotionSpan = motion.span
+  const MotionPath = motion.path
   const location = useLocation()
   const navigate = useNavigate()
   const shelfRef = useRef(null)
@@ -67,7 +70,11 @@ const DashboardPage = () => {
   const [loadingHome, setLoadingHome] = useState(true)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
-  const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 })
+  const reduceMotion = useReducedMotion()
+  const pointerX = useMotionValue(0)
+  const pointerY = useMotionValue(0)
+  const tiltX = useSpring(pointerX, { stiffness: 120, damping: 18 })
+  const tiltY = useSpring(pointerY, { stiffness: 120, damping: 18 })
 
   const [trendingRef, trendingInView] = useInView({ triggerOnce: true, threshold: 0.15 })
   const [collectionsRef, collectionsInView] = useInView({ triggerOnce: true, threshold: 0.15 })
@@ -141,63 +148,111 @@ const DashboardPage = () => {
     shelfRef.current?.scrollBy({ left: amount, behavior: 'smooth' })
   }
 
-  const handleHeroMouseMove = (event) => {
-    const { currentTarget, clientX, clientY } = event
-    const rect = currentTarget.getBoundingClientRect()
-    const x = ((clientX - rect.left) / rect.width - 0.5) * 12
-    const y = ((clientY - rect.top) / rect.height - 0.5) * 10
-    setHeroTilt({ x, y })
+  const handleHeroPointerMove = (event) => {
+    if (reduceMotion || event.pointerType !== 'mouse') return
+    const rect = event.currentTarget.getBoundingClientRect()
+    pointerX.set(((event.clientX - rect.left) / rect.width - 0.5) * 14)
+    pointerY.set(-((event.clientY - rect.top) / rect.height - 0.5) * 10)
+  }
+
+  const resetHeroTilt = () => {
+    pointerX.set(0)
+    pointerY.set(0)
   }
 
   return (
     <AppChrome>
       <div className="home-content">
-        <section className="hero motion-surface" onMouseMove={handleHeroMouseMove} onMouseLeave={() => setHeroTilt({ x: 0, y: 0 })}>
-          <MotionDiv className="hero__copy" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <h2>
-              Find your next
-              <br />
-              <span>Great Read</span>
+        <section className="hero motion-surface" onPointerMove={handleHeroPointerMove} onPointerLeave={resetHeroTilt}>
+          <div className="hero__backdrop" aria-hidden="true">
+            <span className="hero__blob hero__blob--rose" />
+            <span className="hero__blob hero__blob--amber" />
+            <span className="hero__blob hero__blob--sage" />
+            <span className="hero__grid" />
+          </div>
+          <div className="hero__copy">
+            <MotionDiv
+              className="hero__eyebrow"
+              initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45 }}
+            >
+              <span className="hero__eyebrow-dot" aria-hidden="true" />
+              Reviews by readers, for readers
+            </MotionDiv>
+            <h2 aria-label="Find your next Great Read">
+              <span className="hero__line" aria-hidden="true">
+                {['Find', 'your', 'next'].map((word, index) => (
+                  <span className="hero__word-mask" key={word}>
+                    <MotionSpan
+                      className="hero__word"
+                      initial={reduceMotion ? false : { y: '110%' }}
+                      animate={{ y: '0%' }}
+                      transition={{ duration: 0.7, delay: 0.08 + index * 0.09, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      {word}
+                    </MotionSpan>
+                  </span>
+                ))}
+              </span>
+              <span className="hero__line hero__line--accent" aria-hidden="true">
+                <span className="hero__word-mask">
+                  <MotionSpan
+                    className="hero__word hero__accent"
+                    initial={reduceMotion ? false : { y: '110%' }}
+                    animate={{ y: '0%' }}
+                    transition={{ duration: 0.8, delay: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    Great Read
+                  </MotionSpan>
+                </span>
+                <svg className="hero__underline" viewBox="0 0 320 24" preserveAspectRatio="none">
+                  <MotionPath
+                    d="M4 16 C 70 6, 150 4, 220 10 S 300 18, 316 8"
+                    initial={reduceMotion ? false : { pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 0.9, delay: 0.95, ease: 'easeInOut' }}
+                  />
+                </svg>
+              </span>
             </h2>
-            <p className="hero__subcopy">Exciting discoveries, thoughtful reviews, and communities of like-minded people.</p>
-            <SearchSuggest genres={allGenres} popularGenres={heroGenres} placeholder="Search by title, author or genre…" />
-            {heroGenres.length > 0 && (
-              <nav className="hero__tags" aria-label="Popular collections">
-                {heroGenres.map((genre) => (
-                  <Link key={genre} to={collectionPath(genre)}>
-                    <span aria-hidden="true">#</span>
-                    {genre.replace(/\s+/g, '')}
+            <MotionDiv
+              className="hero__lower"
+              initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.55 }}
+            >
+              <p className="hero__subcopy">Exciting discoveries, thoughtful reviews, and communities of like-minded people.</p>
+              <SearchSuggest genres={allGenres} popularGenres={heroGenres} placeholder="Search by title, author or genre…" />
+              {heroGenres.length > 0 && (
+                <nav className="hero__tags" aria-label="Popular collections">
+                  {heroGenres.map((genre) => (
+                    <Link key={genre} to={collectionPath(genre)}>
+                      <span aria-hidden="true">#</span>
+                      {genre.replace(/\s+/g, '')}
+                    </Link>
+                  ))}
+                  <Link className="hero__tags-all" to="/collections">
+                    All collections
+                    <span aria-hidden="true">→</span>
                   </Link>
-                ))}
-                <Link className="hero__tags-all" to="/collections">
-                  All collections
-                  <span aria-hidden="true">→</span>
-                </Link>
-              </nav>
-            )}
-          </MotionDiv>
+                </nav>
+              )}
+            </MotionDiv>
+          </div>
           <MotionDiv
-            className="hero__image hero__image--book"
-            aria-label="Illustration of an opened book"
-            animate={{ x: heroTilt.x, y: heroTilt.y, rotate: heroTilt.x * 0.3 }}
-            transition={{ type: 'spring', stiffness: 140, damping: 16 }}
+            className="hero__image"
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="book-illustration" aria-hidden="true">
-              <div className="book-illustration__shadow" />
-              <div className="book-illustration__spine" />
-              <div className="book-illustration__left-page" />
-              <div className="book-illustration__right-page" />
-              <div className="book-illustration__left-stack">
-                {Array.from({ length: 8 }).map((_, index) => (
-                  <span key={`left-${index}`} style={{ '--page-index': index }} />
-                ))}
-              </div>
-              <div className="book-illustration__flip-stack">
-                {Array.from({ length: 10 }).map((_, index) => (
-                  <span key={`right-${index}`} style={{ '--page-index': index }} />
-                ))}
-              </div>
-            </div>
+            <HeroShowcase
+              books={trendingBooks}
+              loading={loadingHome}
+              tiltX={tiltX}
+              tiltY={tiltY}
+              onOpenBook={(book) => navigate(`/books/${book.id}`)}
+            />
           </MotionDiv>
         </section>
 

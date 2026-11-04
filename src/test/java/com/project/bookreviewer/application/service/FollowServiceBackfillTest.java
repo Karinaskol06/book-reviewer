@@ -134,6 +134,7 @@ class FollowServiceBackfillTest {
 
         verify(followRepository).delete(1L, 2L);
         verify(activityRepository).deleteByActorIdAndTargetUserId(2L, 1L);
+        verify(activityRepository).deleteFollowActivities(1L, 2L);
         verify(activityRepository, never()).save(any());
     }
 

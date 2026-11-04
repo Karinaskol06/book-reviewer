@@ -83,9 +83,31 @@ public class ActivityEventListener {
         // Catalog adds are not fan-out to feeds for now (feed = reviews + shelf status only).
     }
 
+    /**
+     * "A started following B" goes to the feeds of A's followers. B is skipped: being followed is not news
+     * about the people B follows. Runs inside the follow's own transaction, so a failed follow leaves no cards.
+     */
     @EventListener
     public void handleFollowCreated(FollowCreatedEvent event) {
-        // Follow relationships are not written as feed cards.
+        Long actorId = event.followerId();
+        Long followedUserId = event.followingId();
+        String additionalData = ActivityEvent.followedUserData(followedUserId);
+
+        int written = 0;
+        for (Follow follow : followRepository.findFollowers(actorId)) {
+            Long readerId = follow.getFollowerId();
+            if (readerId.equals(followedUserId)) {
+                continue;
+            }
+            activityRepository.save(ActivityEvent.builder()
+                    .actorId(actorId)
+                    .targetUserId(readerId)
+                    .type(ActivityType.FOLLOWED_USER)
+                    .additionalData(additionalData)
+                    .build());
+            written++;
+        }
+        log.info("Follow events created for user {} following {}: {} feeds", actorId, followedUserId, written);
     }
 
     private ActivityType mapStatusToActivityType(ReadingStatus status) {

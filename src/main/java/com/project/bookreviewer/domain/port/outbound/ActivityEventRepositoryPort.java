@@ -29,4 +29,7 @@ public interface ActivityEventRepositoryPort {
     void deleteByReviewId(Long reviewId);
 
     void deleteByActorIdAndTargetUserId(Long actorId, Long targetUserId);
+
+    /** Removes the "actor started following followedUserId" cards from every feed. */
+    void deleteFollowActivities(Long actorId, Long followedUserId);
 }

@@ -142,6 +142,29 @@ class FeedServiceTest {
         assertThat(page.getContent().getFirst().getBook()).isNotNull();
     }
 
+    @Test
+    void getUserFeed_followCardResolvesTheFollowedUser() {
+        FeedService realJsonFeed = new FeedService(activityRepository, activityMapper, userService, bookService,
+                reviewService, new ObjectMapper());
+        ActivityEvent follow = ActivityEvent.builder()
+                .id(1L).actorId(5L).targetUserId(1L).type(ActivityType.FOLLOWED_USER)
+                .additionalData(ActivityEvent.followedUserData(9L)).createdAt(LocalDateTime.now())
+                .build();
+        when(activityRepository.findFeedEvents(eq(1L), any())).thenReturn(new PageImpl<>(List.of(follow)));
+        stubMapper();
+        when(userService.buildReviewUserDto(5L)).thenReturn(
+                ReviewResponse.ReviewUserDto.builder().id(5L).username("alice").build());
+        when(userService.buildReviewUserDto(9L)).thenReturn(
+                ReviewResponse.ReviewUserDto.builder().id(9L).username("bob").build());
+
+        ActivityFeedItemDto item = realJsonFeed.getUserFeed(1L, PageRequest.of(0, 20)).getContent().getFirst();
+
+        assertThat(item.getType()).isEqualToIgnoringCase("FOLLOWED_USER");
+        assertThat(item.getActor().getUsername()).isEqualTo("alice");
+        assertThat(item.getTargetUser().getUsername()).isEqualTo("bob");
+        assertThat(item.getBook()).isNull();
+    }
+
     private void stubMapper() {
         when(activityMapper.toDto(any())).thenAnswer(inv -> {
             ActivityEvent e = inv.getArgument(0);

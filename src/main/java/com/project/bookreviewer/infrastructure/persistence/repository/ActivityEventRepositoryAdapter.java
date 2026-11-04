@@ -88,6 +88,12 @@ public class ActivityEventRepositoryAdapter implements ActivityEventRepositoryPo
         jpaRepo.deleteByActorIdAndTargetUserId(actorId, targetUserId);
     }
 
+    @Override
+    public void deleteFollowActivities(Long actorId, Long followedUserId) {
+        jpaRepo.deleteByActorIdAndTypeAndAdditionalData(
+                actorId, ActivityType.FOLLOWED_USER, ActivityEvent.followedUserData(followedUserId));
+    }
+
     private ActivityEvent mapToDomain(ActivityEventEntity entity) {
         return ActivityEvent.builder()
                 .id(entity.getId())

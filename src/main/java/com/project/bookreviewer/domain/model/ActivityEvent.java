@@ -15,5 +15,13 @@ public class ActivityEvent {
     private Long reviewId;       // optional
     private String additionalData; // JSON string for extra context
     private LocalDateTime createdAt;
+
+    /**
+     * {@code additionalData} for a FOLLOWED_USER card: the user who was followed. Kept in one place so
+     * the writer and the unfollow cleanup always produce the same string.
+     */
+    public static String followedUserData(Long followedUserId) {
+        return "{\"targetUserId\": " + followedUserId + "}";
+    }
 }
 
