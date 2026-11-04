@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -88,7 +89,7 @@ class TasteProfileServiceTest {
                 .containsExactly("Fantasy", "Mystery");
         assertThat(profile.getTopGenres().get(0).getWeight())
                 .isGreaterThan(profile.getTopGenres().get(1).getWeight());
-        assertThat(profile.getTopGenres()).allSatisfy(g -> assertThat(g.getSharePercent()).isPositive());
+        assertThat(profile.getTopGenres()).allSatisfy(g -> assertThat(g.getBookCount()).isEqualTo(1));
         assertThat(profile.getSampleSize()).isEqualTo(2);
     }
 
@@ -99,21 +100,23 @@ class TasteProfileServiceTest {
                 status(2L, ReadingStatus.READ),
                 status(3L, ReadingStatus.READ),
                 status(4L, ReadingStatus.READ),
-                status(5L, ReadingStatus.READ)
+                status(5L, ReadingStatus.READ),
+                status(6L, ReadingStatus.READ)
         ));
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Zebra"))));
         when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Alpha"))));
         when(bookRepository.findById(3L)).thenReturn(Optional.of(book(3L, Set.of("Beta"))));
         when(bookRepository.findById(4L)).thenReturn(Optional.of(book(4L, Set.of("Gamma"))));
         when(bookRepository.findById(5L)).thenReturn(Optional.of(book(5L, Set.of("Delta"))));
+        when(bookRepository.findById(6L)).thenReturn(Optional.of(book(6L, Set.of("Omega"))));
         when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         TasteProfileResponse profile = tasteProfileService.getTasteProfile(1L);
 
-        // Equal READ weights → alphabetical, top 4
+        // Equal READ weights → alphabetical, top 5
         assertThat(profile.getTopGenres()).extracting(TasteProfileResponse.GenreShare::getName)
-                .containsExactly("Alpha", "Beta", "Delta", "Gamma");
+                .containsExactly("Alpha", "Beta", "Delta", "Gamma", "Omega");
     }
 
     @Test
@@ -154,6 +157,138 @@ class TasteProfileServiceTest {
         assertThat(profile.getDominantPacing()).isEqualTo("FAST");
         assertThat(profile.getAverageRating()).isEqualTo(4.0);
         assertThat(profile.getReviewSampleSize()).isEqualTo(3);
+    }
+
+    @Test
+    void topGenres_reportHowManyBooksCarryEachGenre() {
+        when(statusRepository.findByUserId(1L)).thenReturn(List.of(
+                status(1L, ReadingStatus.READ),
+                status(2L, ReadingStatus.READ),
+                status(3L, ReadingStatus.READ)
+        ));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Dark Academia", "Mystery"))));
+        when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Dark Academia"))));
+        when(bookRepository.findById(3L)).thenReturn(Optional.of(book(3L, Set.of("Thriller"))));
+        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        TasteProfileResponse profile = tasteProfileService.getTasteProfile(1L);
+
+        assertThat(profile.getTopGenres())
+                .extracting(TasteProfileResponse.GenreShare::getName, TasteProfileResponse.GenreShare::getBookCount)
+                .containsExactly(tuple("Dark Academia", 2), tuple("Mystery", 1), tuple("Thriller", 1));
+        assertThat(profile.getOtherGenreCount()).isZero();
+    }
+
+    @Test
+    void topGenres_rankByBookCountBeforeWeight() {
+        // One loved READ book (weight 3 + 2) vs two WANT_TO_READ books (weight 1 + 1)
+        when(statusRepository.findByUserId(1L)).thenReturn(List.of(
+                status(1L, ReadingStatus.READ),
+                status(2L, ReadingStatus.WANT_TO_READ),
+                status(3L, ReadingStatus.WANT_TO_READ)
+        ));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Fantasy"))));
+        when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Horror"))));
+        when(bookRepository.findById(3L)).thenReturn(Optional.of(book(3L, Set.of("Horror"))));
+        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(review(100L, 1L, 5, Set.of(), Pacing.FAST))));
+
+        TasteProfileResponse profile = tasteProfileService.getTasteProfile(1L);
+
+        assertThat(profile.getTopGenres()).extracting(TasteProfileResponse.GenreShare::getName)
+                .containsExactly("Horror", "Fantasy");
+    }
+
+    @Test
+    void tasteGenreLabels_forRecommendations_stayRankedByWeight() {
+        when(statusRepository.findByUserId(1L)).thenReturn(List.of(
+                status(1L, ReadingStatus.READ),
+                status(2L, ReadingStatus.WANT_TO_READ),
+                status(3L, ReadingStatus.WANT_TO_READ)
+        ));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Fantasy"))));
+        when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Horror"))));
+        when(bookRepository.findById(3L)).thenReturn(Optional.of(book(3L, Set.of("Horror"))));
+        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(review(100L, 1L, 5, Set.of(), Pacing.FAST))));
+
+        assertThat(tasteProfileService.resolveTasteGenreLabels(1L, 3))
+                .containsExactly("Fantasy", "Horror");
+    }
+
+    @Test
+    void umbrellaAndCombinedTags_areCleanedBeforeCounting() {
+        when(statusRepository.findByUserId(1L)).thenReturn(List.of(
+                status(1L, ReadingStatus.READ),
+                status(2L, ReadingStatus.READ)
+        ));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Fiction", "Fantasy"))));
+        when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Fiction", "Science Fiction Fantasy"))));
+        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        TasteProfileResponse profile = tasteProfileService.getTasteProfile(1L);
+
+        assertThat(profile.getTopGenres())
+                .extracting(TasteProfileResponse.GenreShare::getName, TasteProfileResponse.GenreShare::getBookCount)
+                .containsExactly(tuple("Fantasy", 2), tuple("Science Fiction", 1));
+    }
+
+    @Test
+    void sampleSize_countsOnlyBooksThatAddAGenre() {
+        when(statusRepository.findByUserId(1L)).thenReturn(List.of(
+                status(1L, ReadingStatus.READ),
+                status(2L, ReadingStatus.READ),
+                status(3L, ReadingStatus.READ)
+        ));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Gothic"))));
+        when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Fiction"))));
+        when(bookRepository.findById(3L)).thenReturn(Optional.of(book(3L, null)));
+        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        TasteProfileResponse profile = tasteProfileService.getTasteProfile(1L);
+
+        assertThat(profile.getSampleSize()).isEqualTo(1);
+    }
+
+    @Test
+    void otherGenreCount_isDistinctGenresBeyondTheTopFive() {
+        when(statusRepository.findByUserId(1L)).thenReturn(List.of(
+                status(1L, ReadingStatus.READ),
+                status(2L, ReadingStatus.READ)
+        ));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Gothic", "Horror", "Classics"))));
+        when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Mystery", "Thriller", "Detective"))));
+        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        TasteProfileResponse profile = tasteProfileService.getTasteProfile(1L);
+
+        assertThat(profile.getTopGenres()).hasSize(5);
+        assertThat(profile.getOtherGenreCount()).isEqualTo(1);
+    }
+
+    @Test
+    void allGenres_listEveryGenreInTheSameOrderAsTopGenres() {
+        when(statusRepository.findByUserId(1L)).thenReturn(List.of(
+                status(1L, ReadingStatus.READ),
+                status(2L, ReadingStatus.READ)
+        ));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L, Set.of("Gothic", "Horror", "Classics"))));
+        when(bookRepository.findById(2L)).thenReturn(Optional.of(book(2L, Set.of("Gothic", "Mystery", "Thriller", "Detective"))));
+        when(reviewRepository.findByUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        TasteProfileResponse profile = tasteProfileService.getTasteProfile(1L);
+
+        assertThat(profile.getAllGenres())
+                .extracting(TasteProfileResponse.GenreShare::getName, TasteProfileResponse.GenreShare::getBookCount)
+                .containsExactly(
+                        tuple("Gothic", 2), tuple("Classics", 1), tuple("Detective", 1),
+                        tuple("Horror", 1), tuple("Mystery", 1), tuple("Thriller", 1));
+        assertThat(profile.getAllGenres()).startsWith(profile.getTopGenres().toArray(new TasteProfileResponse.GenreShare[0]));
     }
 
     private static UserBookStatus status(Long bookId, ReadingStatus status) {
