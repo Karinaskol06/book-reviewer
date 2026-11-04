@@ -1,6 +1,7 @@
 @import './DashboardPage.css';
 
 .profile-page {
+  --profile-cover-col: 165px;
   padding-top: 2.6rem;
   padding-bottom: 3rem;
   margin-top: 1.7rem!important;
@@ -854,18 +855,23 @@
   border-radius: 0.3rem;
 }
 
-.shelf-grid {
+.profile-page .shelf-grid {
   margin-top: 1.1rem;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  /* Same column width as .recommendations-grid; scoped to beat CollectionsPage .shelf-grid. */
+  grid-template-columns: repeat(auto-fill, var(--profile-cover-col));
   gap: 1.15rem;
+  justify-content: start;
 }
 
-.shelf-book {
+.profile-page .shelf-book {
+  width: var(--profile-cover-col);
+  max-width: var(--profile-cover-col);
   cursor: pointer;
 }
 
-.shelf-book img {
+.profile-page .shelf-book img {
+  display: block;
   width: 100%;
   aspect-ratio: 2 / 3;
   height: auto;
@@ -875,19 +881,21 @@
   transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
-.shelf-book:hover img {
+.profile-page .shelf-book:hover img {
   transform: translateY(-4px) scale(1.02);
   box-shadow: 0 12px 28px rgba(47, 78, 80, 0.1);
 }
 
-.shelf-book h4 {
+.profile-page .shelf-book h4 {
   margin: 0.65rem 0 0.14rem;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
+  line-height: 1.3;
 }
 
-.shelf-book p {
+.profile-page .shelf-book p {
   margin: 0;
+  font-size: 0.92rem;
   color: rgba(2, 40, 89, 0.7);
 }
 
@@ -944,16 +952,17 @@
   box-shadow: 0 10px 20px rgba(47, 78, 80, 0.1);
 }
 
-.recommendations-grid {
+.profile-page .recommendations-grid {
   margin-top: 1.4rem;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  grid-template-columns: repeat(auto-fill, var(--profile-cover-col));
   gap: 1.15rem;
-  justify-items: start;
+  justify-content: start;
 }
 
-.recommendation-card {
-  width: 100%;
+.profile-page .recommendation-card {
+  width: var(--profile-cover-col);
+  max-width: var(--profile-cover-col);
   background: linear-gradient(165deg, rgba(251, 236, 215, 0.9), rgba(255, 245, 233, 0.65));
   border-radius: 0.9rem;
   border: 1px solid rgba(2, 40, 89, 0.14);
@@ -1154,12 +1163,17 @@
     padding: 0 1rem;
   }
 
-  .shelf-grid {
+  .profile-page .shelf-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem 0.7rem;
   }
 
-  .shelf-book h4 {
+  .profile-page .shelf-book {
+    width: 100%;
+    max-width: none;
+  }
+
+  .profile-page .shelf-book h4 {
     margin-top: 0.45rem;
     font-size: 0.95rem;
     line-height: 1.25;
@@ -1169,7 +1183,7 @@
     overflow: hidden;
   }
 
-  .shelf-book p {
+  .profile-page .shelf-book p {
     font-size: 0.8rem;
     white-space: nowrap;
     overflow: hidden;
@@ -1190,7 +1204,7 @@
     min-height: 2.75rem;
   }
 
-  .recommendations-grid {
+  .profile-page .recommendations-grid {
     grid-template-columns: none;
     grid-auto-flow: column;
     grid-auto-columns: minmax(9.5rem, 44%);
@@ -1203,19 +1217,21 @@
     scroll-padding-inline: 1.25rem;
   }
 
-  .recommendation-card {
+  .profile-page .recommendation-card {
+    width: auto;
+    max-width: none;
     scroll-snap-align: start;
   }
 
-  .recommendation-card__body {
+  .profile-page .recommendation-card__body {
     padding: 0.75rem;
   }
 
-  .recommendation-card__reason {
+  .profile-page .recommendation-card__reason {
     font-size: 0.68rem;
   }
 
-  .recommendation-card h4 {
+  .profile-page .recommendation-card h4 {
     font-size: 1.05rem;
     line-height: 1.25;
   }
