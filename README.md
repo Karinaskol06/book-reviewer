@@ -127,7 +127,7 @@ Use this when you want hot-reload on the backend/frontend while only infra runs 
 ### Prerequisites
 
 - JDK **21**
-- Node.js **20+** and npm
+- Node.js **22+** and npm
 - Docker (for Postgres + Elasticsearch) *or* local installs of both
 
 ### 1. Start infrastructure only
@@ -289,7 +289,7 @@ GitHub Actions runs on every **push** and **pull request** to `main` (see [`.git
 | Job | When | What it does |
 | --- | ---- | ------------ |
 | **Backend** | push + PR | JDK 21 + `./mvnw -B test` (Testcontainers Postgres/Elasticsearch on the runner) |
-| **Frontend** | push + PR | Node 20 + `npm ci` + production `npm run build` |
+| **Frontend** | push + PR | Node 22 + `npm ci` + production `npm run build` |
 | **Deploy to EC2** | push to `main` only | SSH → `git fetch` / `reset --hard` → `docker compose -f docker-compose.aws-rds.yml up -d --build` → poll `/actuator/health` → on failure **rollback** to previous commit |
 
 Backend and frontend run in parallel; deploy waits for both and only runs on `main`.
