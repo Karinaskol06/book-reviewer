@@ -65,6 +65,7 @@ export const filterBooks = async ({
   contentSafe,
   page = 0,
   size = 8,
+  sort,
 }) => {
   const params = {
     query: query || undefined,
@@ -76,6 +77,7 @@ export const filterBooks = async ({
     contentSafe: contentSafe === true ? true : undefined,
     page,
     size,
+    sort: sort || undefined, // Spring Data "field,direction", e.g. "averageRating,desc"
   }
 
   const response = await api.get('/books/filter', { params })

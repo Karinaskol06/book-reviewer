@@ -567,3 +567,76 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Phones: a centred cover instead of a full-width poster, tighter cards, star rows that wrap, finger-sized buttons. */
+@media (max-width: 740px) {
+  .book-hero {
+    gap: 1.1rem;
+    padding-top: 0.75rem;
+  }
+
+  .book-cover-col img {
+    display: block;
+    width: min(62vw, 15rem);
+    height: auto;
+    aspect-ratio: 2 / 3;
+    margin: 0 auto;
+  }
+
+  .status-actions button {
+    min-height: 2.75rem;
+  }
+
+  .book-main h2 {
+    font-size: 2.3rem;
+    line-height: 1.1;
+  }
+
+  .book-author {
+    font-size: 1.45rem;
+  }
+
+  .edit-book-btn {
+    min-height: 2.5rem;
+  }
+
+  .synopsis {
+    padding: 1rem;
+  }
+
+  .synopsis h3 {
+    font-size: 1.6rem;
+  }
+
+  .critical {
+    padding: 1rem;
+  }
+
+  .critical h3 {
+    font-size: 1.9rem;
+    line-height: 1.15;
+  }
+
+  .review-card {
+    padding: 1rem;
+  }
+
+  .review-card header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .review-stars {
+    font-size: 1.2rem;
+  }
+
+  .review-helpful__btn,
+  .review-open-btn,
+  .review-owner-btn {
+    min-height: 2.5rem;
+  }
+
+  .spoiler-gate button {
+    min-height: 2.75rem;
+  }
+}

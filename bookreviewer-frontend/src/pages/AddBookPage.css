@@ -378,3 +378,29 @@
     width: 100%;
   }
 }
+
+/* Phones: bigger genre chips, full-width form actions. */
+@media (max-width: 740px) {
+  .genre-chips {
+    max-height: 12rem;
+  }
+
+  .genre-chips button {
+    min-height: 2.5rem;
+    padding: 0 0.85rem;
+    font-size: 0.8rem;
+  }
+
+  .dropzone p button {
+    min-height: 2.5rem;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .actions button {
+    flex: 1 1 12rem;
+    min-height: 2.75rem;
+  }
+}

@@ -44,6 +44,15 @@ button:hover:not(:disabled) {
   filter: brightness(0.96);
 }
 
+@media (max-width: 740px) {
+  /* iOS Safari zooms the page when a focused field's text is under 16px; keep form text at 16px on phones. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 11px;
   height: 11px;

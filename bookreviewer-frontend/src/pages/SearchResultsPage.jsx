@@ -11,6 +11,32 @@ const renderStars = (rating = 0) => {
   return '★★★★★'.slice(0, rounded) + '☆☆☆☆☆'.slice(0, 5 - rounded)
 }
 
+/** Search box above the results on phones (wider screens use the header search). Remounted per query via `key`. */
+const ResultsSearch = ({ initialQuery, onSearch }) => {
+  const [draft, setDraft] = useState(initialQuery)
+  return (
+    <form
+      className="results-search"
+      role="search"
+      aria-label="Search books"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSearch(draft.trim())
+      }}
+    >
+      <input
+        type="search"
+        aria-label="Search books"
+        placeholder="Title, author or genre"
+        enterKeyHint="search"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <button type="submit">Search</button>
+    </form>
+  )
+}
+
 const SearchResultsPage = () => {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -32,6 +58,10 @@ const SearchResultsPage = () => {
   const [yearToDraft, setYearToDraft] = useState(yearTo)
   const debouncedYearFrom = useDebounce(yearFromDraft, 400)
   const debouncedYearTo = useDebounce(yearToDraft, 400)
+  // Phones: filters collapse behind a toggle so results are visible first (always open on wider screens via CSS).
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const activeFilterCount =
+    selectedGenres.length + (minRating ? 1 : 0) + (pacing ? 1 : 0) + (yearFrom || yearTo ? 1 : 0) + (contentSafe ? 1 : 0)
 
   useEffect(() => {
     const loadGenres = async () => {
@@ -92,7 +122,24 @@ const SearchResultsPage = () => {
     <AppChrome>
       <div className="home-content">
         <section className="search-layout">
-          <aside className="filters-panel">
+          <ResultsSearch key={query} initialQuery={query} onSearch={(text) => updateFilters({ query: text })} />
+          <aside className="filters-panel" data-open={filtersOpen}>
+            <button
+              type="button"
+              className="filters-toggle"
+              aria-expanded={filtersOpen}
+              aria-controls="search-filters"
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              <span>
+                Filters
+                {activeFilterCount > 0 && <span className="filters-toggle__count">{activeFilterCount} active</span>}
+              </span>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div id="search-filters" className="filters-body">
             <h3>Genre</h3>
             <div className="filter-tags">
               {allGenres.map((genre) => {
@@ -155,6 +202,7 @@ const SearchResultsPage = () => {
               />
               Safe for all ages
             </label>
+            </div>
           </aside>
 
           <section className="results-panel">

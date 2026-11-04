@@ -15,6 +15,8 @@ import SearchResultsPage from './pages/SearchResultsPage.jsx'
 import ActivityFeedPage from './pages/ActivityFeedPage.jsx'
 import ClubsPage from './pages/ClubsPage.jsx'
 import ClubDetailPage from './pages/ClubDetailPage.jsx'
+import CollectionsPage from './pages/CollectionsPage.jsx'
+import CollectionPage from './pages/CollectionPage.jsx'
 import { useAuth } from './hooks/useAuth.js'
 
 function App() {
@@ -67,6 +69,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <ActivityFeedPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections"
+            element={
+              <ProtectedRoute>
+                <CollectionsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/:genre"
+            element={
+              <ProtectedRoute>
+                <CollectionPage />
               </ProtectedRoute>
             }
           />

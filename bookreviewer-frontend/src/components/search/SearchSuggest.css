@@ -1,0 +1,308 @@
+/* Archive search with a suggestions panel (home hero). */
+
+.search-suggest {
+  position: relative;
+  width: min(100%, 36rem);
+}
+
+.search-suggest__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-suggest__field > .search-suggest__icon {
+  position: absolute;
+  left: 1rem;
+  color: rgba(2, 40, 89, 0.55);
+  pointer-events: none;
+}
+
+/* Two classes beat the hero's `.hero__copy input` rule. */
+.search-suggest .search-suggest__input {
+  width: 100%;
+  min-height: 3.25rem;
+  box-sizing: border-box;
+  padding: 0 2.9rem 0 2.85rem;
+  border: 1px solid rgba(2, 40, 89, 0.14);
+  border-radius: 0.95rem;
+  background: #fff5ea;
+  color: #022859;
+  font: inherit;
+  font-size: 1rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.search-suggest .search-suggest__input::placeholder {
+  color: rgba(2, 40, 89, 0.5);
+}
+
+.search-suggest .search-suggest__input:focus {
+  outline: none;
+  background: #fffaf2;
+  border-color: rgba(44, 82, 115, 0.45);
+  box-shadow: 0 0 0 3px rgba(44, 82, 115, 0.14);
+}
+
+.search-suggest .search-suggest__input[aria-expanded='true'] {
+  border-color: rgba(44, 82, 115, 0.45);
+}
+
+/* Small ring while suggestions load */
+.search-suggest__spinner {
+  position: absolute;
+  right: 2.6rem;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(2, 40, 89, 0.15);
+  border-top-color: #2c5273;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.search-suggest__field[data-loading='true'] .search-suggest__spinner {
+  opacity: 1;
+  animation: search-spin 0.7s linear infinite;
+}
+
+.search-suggest__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Panel ---------- */
+
+.search-suggest__panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.45rem;
+  background: #fffaf2;
+  border: 1px solid rgba(2, 40, 89, 0.12);
+  border-radius: 1rem;
+  box-shadow: 0 22px 44px rgba(47, 78, 80, 0.18);
+  animation: search-drop 0.16s ease both;
+}
+
+.search-suggest__empty {
+  margin: 0;
+  padding: 0.65rem 0.7rem 0.35rem;
+  color: rgba(2, 40, 89, 0.72);
+  font-size: 0.92rem;
+}
+
+.search-suggest__list,
+.search-suggest__options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-suggest__group + .search-suggest__group {
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(2, 40, 89, 0.07);
+}
+
+.search-suggest__group-label {
+  margin: 0;
+  padding: 0.5rem 0.7rem 0.3rem;
+  color: #749283;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.search-suggest__option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.7rem;
+  color: #022859;
+  cursor: pointer;
+}
+
+.search-suggest__option[aria-selected='true'] {
+  background: rgba(2, 40, 89, 0.07);
+}
+
+.search-suggest__option > .search-suggest__icon:last-child {
+  margin-left: auto;
+  color: rgba(2, 40, 89, 0.45);
+}
+
+.search-suggest__cover {
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 3.2rem;
+  border-radius: 0.3rem;
+  background: #f2e5d6;
+  object-fit: cover;
+  box-shadow: 0 3px 8px rgba(2, 40, 89, 0.15);
+}
+
+.search-suggest__avatar {
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: 1px solid rgba(2, 40, 89, 0.12);
+  object-fit: cover;
+}
+
+.search-suggest__badge {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.6rem;
+  background: rgba(116, 146, 131, 0.16);
+  color: #2f4e50;
+}
+
+.search-suggest__badge--plain {
+  background: transparent;
+  color: rgba(2, 40, 89, 0.5);
+}
+
+.search-suggest__text {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.search-suggest__title,
+.search-suggest__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-suggest__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.search-suggest__meta {
+  color: rgba(2, 40, 89, 0.62);
+  font-size: 0.8rem;
+}
+
+.search-suggest mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: rgba(242, 167, 27, 0.3);
+  color: inherit;
+}
+
+.search-suggest__option--quiet {
+  min-height: 2.25rem;
+  padding-left: 3.55rem;
+}
+
+/* "Browse a collection": chips instead of rows */
+.search-suggest__options--chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.15rem 0.6rem 0.5rem;
+}
+
+.search-suggest__options--chips .search-suggest__option {
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border: 1px solid rgba(116, 146, 131, 0.35);
+  border-radius: 999px;
+  background: rgba(116, 146, 131, 0.1);
+  color: #2c5273;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.search-suggest__options--chips .search-suggest__option[aria-selected='true'] {
+  background: #749283;
+  border-color: #749283;
+  color: #fff9ee;
+}
+
+.search-suggest__group--actions .search-suggest__title {
+  font-weight: 600;
+  white-space: normal;
+}
+
+.search-suggest__hint {
+  margin: 0.35rem 0 0;
+  padding: 0.45rem 0.7rem 0.2rem;
+  border-top: 1px solid rgba(2, 40, 89, 0.07);
+  color: rgba(2, 40, 89, 0.5);
+  font-size: 0.72rem;
+}
+
+.search-suggest__hint kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid rgba(2, 40, 89, 0.18);
+  border-bottom-width: 2px;
+  border-radius: 0.3rem;
+  background: #fff;
+  font: inherit;
+  font-size: 0.7rem;
+}
+
+/* Keyboard hints mean nothing on touch screens. */
+@media (hover: none) {
+  .search-suggest__hint {
+    display: none;
+  }
+}
+
+@media (max-width: 740px) {
+  .search-suggest {
+    width: 100%;
+  }
+
+  .search-suggest__panel {
+    max-height: 60vh;
+  }
+}
+
+@keyframes search-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-suggest__panel {
+    animation: none;
+  }
+
+  .search-suggest__field[data-loading='true'] .search-suggest__spinner {
+    animation-duration: 1.6s;
+  }
+}

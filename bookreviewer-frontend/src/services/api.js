@@ -9,6 +9,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Send lists as `genres=a&genres=b` (what Spring's @RequestParam binds), not axios's default `genres[]=a`.
+  paramsSerializer: { indexes: null },
 })
 
 api.interceptors.request.use((config) => {

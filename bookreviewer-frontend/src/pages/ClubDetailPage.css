@@ -696,3 +696,19 @@
     animation: none !important;
   }
 }
+
+/* Phones: finger-sized back link and member actions. */
+@media (max-width: 740px) {
+  .club-detail .club-back,
+  .club-meeting-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+  }
+
+  .club-member-actions .ghost,
+  .club-member-actions .clubs-primary {
+    min-height: 2.5rem;
+    font-size: 0.85rem;
+  }
+}

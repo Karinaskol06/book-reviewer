@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import AppChrome from '../components/layout/AppChrome.jsx'
 import { useAuth } from '../hooks/useAuth.js'
 import { getBookDetail, deleteReview } from '../services/bookService.js'
 import { resolveMediaUrl } from '../utils/media.js'
+import TopGenresChart from '../components/profile/TopGenresChart.jsx'
+import ProfileReviews from '../components/profile/ProfileReviews.jsx'
 import {
   exportReadingListPdf,
   getMyProfile,
@@ -60,8 +62,6 @@ const parseSocialLinksInput = (value) =>
 
 const UserProfilePage = () => {
   const MotionArticle = motion.article
-  const MotionDiv = motion.div
-  const reduceMotion = useReducedMotion()
   const navigate = useNavigate()
   const location = useLocation()
   const { id } = useParams()
@@ -91,7 +91,6 @@ const UserProfilePage = () => {
   const [modalPeople, setModalPeople] = useState([])
   const [modalPeopleLoading, setModalPeopleLoading] = useState(false)
   const [deletingReviewId, setDeletingReviewId] = useState(null)
-  const [hoveredGenre, setHoveredGenre] = useState(null)
   const [aboutPanelHeight, setAboutPanelHeight] = useState(null)
   const aboutPanelRef = useRef(null)
 
@@ -274,12 +273,8 @@ const UserProfilePage = () => {
     }
   }
 
-  const topGenres = Array.isArray(tasteProfile?.topGenres) ? tasteProfile.topGenres : []
+  const hasGenreTaste = Array.isArray(tasteProfile?.topGenres) && tasteProfile.topGenres.length > 0
   const topMoods = Array.isArray(tasteProfile?.topMoods) ? tasteProfile.topMoods : []
-  const genreChartLabel = topGenres.length > 0
-    ? `Top genres: ${topGenres.map((g) => `${g.name} ${g.sharePercent}%`).join(', ')}`
-    : 'No genre taste data yet'
-  const genreShareTotal = topGenres.reduce((sum, g) => sum + (Number(g.sharePercent) || 0), 0) || 1
 
   useEffect(() => {
     const panel = aboutPanelRef.current
@@ -404,18 +399,6 @@ const UserProfilePage = () => {
         <p className="detail-loading">Loading profile...</p>
       </AppChrome>
     )
-  }
-
-  const formatReviewDate = (value) => {
-    if (!value) return 'Recently'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return 'Recently'
-    return date.toLocaleDateString()
-  }
-
-  const renderReviewStars = (rating = 0) => {
-    const normalized = Math.max(0, Math.min(5, Number(rating) || 0))
-    return '★'.repeat(normalized) + '☆'.repeat(5 - normalized)
   }
 
   const joinedLabel = formatJoinedDate(profile.joinedAt)
@@ -596,79 +579,8 @@ const UserProfilePage = () => {
             style={aboutPanelHeight ? { minHeight: `${aboutPanelHeight}px` } : undefined}
           >
             <h3>Top genres</h3>
-            {topGenres.length > 0 ? (
-              <>
-                <div
-                  className="genre-spectrum"
-                  role="img"
-                  aria-label={genreChartLabel}
-                  onMouseLeave={() => setHoveredGenre(null)}
-                >
-                  <div className="genre-spectrum__ribbon" aria-hidden="true">
-                    {topGenres.map((genre, idx) => {
-                      const share = Number(genre.sharePercent) || 0
-                      const flexGrow = Math.max(share, 6)
-                      const isActive = hoveredGenre === genre.name
-                      const isDimmed = hoveredGenre && !isActive
-                      return (
-                        <div
-                          key={genre.name}
-                          className={`genre-spectrum__slot${isActive ? ' is-active' : ''}${isDimmed ? ' is-dimmed' : ''}`}
-                          style={{ flexGrow }}
-                          onMouseEnter={() => setHoveredGenre(genre.name)}
-                        >
-                          <MotionDiv
-                            className={`genre-spectrum__segment genre-tone-${idx}`}
-                            initial={reduceMotion ? false : { scaleX: 0 }}
-                            animate={{ scaleX: 1 }}
-                            transition={reduceMotion
-                              ? { duration: 0 }
-                              : { duration: 0.45, delay: idx * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                          />
-                          <span className="genre-spectrum__hint">
-                            <strong>{genre.name}</strong>
-                            <em>{share}% of taste</em>
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <ul className="genre-rank">
-                    {topGenres.map((genre, idx) => {
-                      const share = Number(genre.sharePercent) || 0
-                      const isActive = hoveredGenre === genre.name
-                      return (
-                        <li key={genre.name}>
-                          <button
-                            type="button"
-                            className={`genre-rank__row${isActive ? ' is-active' : ''}`}
-                            onMouseEnter={() => setHoveredGenre(genre.name)}
-                            onFocus={() => setHoveredGenre(genre.name)}
-                            onBlur={() => setHoveredGenre(null)}
-                            aria-label={`${genre.name}, ${share} percent`}
-                          >
-                            <span className={`genre-rank__swatch genre-tone-${idx}`} aria-hidden="true" />
-                            <span className="genre-rank__meta">
-                              <span className="genre-rank__name">{genre.name}</span>
-                              <span className="genre-rank__track" aria-hidden="true">
-                                <span
-                                  className={`genre-rank__fill genre-tone-${idx}`}
-                                  style={{ width: `${Math.max(8, (share / genreShareTotal) * 100)}%` }}
-                                />
-                              </span>
-                            </span>
-                            <span className="genre-rank__pct">{share}%</span>
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-                <p className="taste-caption">
-                  Based on {tasteProfile?.sampleSize || 0} books on {viewingOwnAccount ? 'your' : 'their'} shelves.
-                </p>
-              </>
+            {hasGenreTaste ? (
+              <TopGenresChart tasteProfile={tasteProfile} isOwn={viewingOwnAccount} />
             ) : (
               <p className="save-hint">Add books to your shelves to build your chart.</p>
             )}
@@ -818,99 +730,14 @@ const UserProfilePage = () => {
           </div>
         </section>
 
-        <section className="shelf-section reviews-section">
-          <div className="shelf-header">
-            <h3 className="reviews-title">{isOwnProfile ? 'My Reviews' : `${profile.username}'s Reviews`}</h3>
-          </div>
-          {myReviews.length === 0 && (
-            <p className="reviews-empty">
-              {isOwnProfile ? 'You have not written any reviews yet.' : 'No public reviews yet.'}
-            </p>
-          )}
-          <div className="reviews-grid">
-            {myReviews.map((entry) => {
-              const verdictText = entry.review.verdict || entry.review.detailedReview || ''
-              return (
-                <article
-                  key={entry.review.id}
-                  className="review-entry"
-                  onClick={() => navigate(`/books/${entry.bookId}#review-${entry.review.id}`)}
-                >
-                  <div className="review-entry__cover">
-                    <img
-                      src={resolveMediaUrl(entry.bookCover, '/home-book.jpg')}
-                      alt=""
-                    />
-                  </div>
-                  <div className="review-entry__body">
-                    <div className="review-entry__top">
-                      <div className="review-entry__titles">
-                        <h4>{entry.bookTitle}</h4>
-                        {entry.bookAuthor && <p className="review-entry__author">{entry.bookAuthor}</p>}
-                      </div>
-                      <span className="review-entry__rating" aria-label={`${entry.review.rating || 0} stars`}>
-                        {renderReviewStars(entry.review.rating)}
-                      </span>
-                    </div>
-
-                    {verdictText && (
-                      <blockquote className="review-entry__verdict">
-                        “{verdictText}”
-                      </blockquote>
-                    )}
-
-                    {entry.review.whoIsItFor && (
-                      <div className="review-entry__for">
-                        <p className="review-entry__for-label">Who this is for</p>
-                        <p className="review-entry__for-text">{entry.review.whoIsItFor}</p>
-                      </div>
-                    )}
-
-                    {Array.isArray(entry.review.mood) && entry.review.mood.length > 0 && (
-                      <div className="review-entry__moods">
-                        {entry.review.mood.slice(0, 4).map((mood) => (
-                          <span key={mood}>{mood}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    <p className="review-entry__meta">
-                      {formatReviewDate(entry.review.createdAt)}
-                      <span aria-hidden="true"> · </span>
-                      Helpful {entry.review.helpfulCount || 0}
-                    </p>
-
-                    {isOwnProfile && (
-                      <div className="review-entry__actions">
-                        <button
-                          type="button"
-                          className="review-entry__action"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            navigate(`/books/${entry.bookId}/review/${entry.review.id}/edit`)
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="review-entry__action review-entry__action--danger"
-                          disabled={deletingReviewId === entry.review.id}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            handleDeleteReview(entry)
-                          }}
-                        >
-                          {deletingReviewId === entry.review.id ? 'Deleting…' : 'Delete'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        </section>
+        <ProfileReviews
+          entries={myReviews}
+          isOwnProfile={isOwnProfile}
+          ownerName={profile.username}
+          deletingReviewId={deletingReviewId}
+          onEdit={(entry) => navigate(`/books/${entry.bookId}/review/${entry.review.id}/edit`)}
+          onDelete={handleDeleteReview}
+        />
       </div>
 
       {statsModal && (

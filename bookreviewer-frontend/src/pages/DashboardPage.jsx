@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import AppChrome from '../components/layout/AppChrome.jsx'
+import SearchSuggest from '../components/search/SearchSuggest.jsx'
 import { resolveMediaUrl } from '../utils/media.js'
 import './DashboardPage.css'
-import { getCollectionShelves, getGenres, getTrendingBooks, searchBooks } from '../services/homeService.js'
+import { getCollectionShelves, getGenres, getTrendingBooks } from '../services/homeService.js'
+import { collectionPath } from '../utils/search.js'
 
 const renderStars = (rating = 0) => {
   const rounded = Math.round(rating)
@@ -60,12 +62,9 @@ const DashboardPage = () => {
   const navigate = useNavigate()
   const shelfRef = useRef(null)
   const [trendingBooks, setTrendingBooks] = useState([])
-  const [genres, setGenres] = useState([])
-  const [searchText, setSearchText] = useState('')
-  const [searchResults, setSearchResults] = useState([])
+  const [allGenres, setAllGenres] = useState([])
   const [genreCards, setGenreCards] = useState([])
   const [loadingHome, setLoadingHome] = useState(true)
-  const [loadingSearch, setLoadingSearch] = useState(false)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 })
@@ -82,7 +81,7 @@ const DashboardPage = () => {
 
         const allGenres = await getGenres()
         const genreList = Array.isArray(allGenres) ? allGenres : []
-        setGenres(genreList.slice(0, 6))
+        setAllGenres(genreList)
 
         const shelves = await getCollectionShelves({
           genres: genreList,
@@ -101,28 +100,6 @@ const DashboardPage = () => {
   }, [])
 
   useEffect(() => {
-    const debounced = setTimeout(async () => {
-      const query = searchText.trim()
-      if (!query) {
-        setSearchResults([])
-        return
-      }
-
-      try {
-        setLoadingSearch(true)
-        const books = await searchBooks(query, 8)
-        setSearchResults(books)
-      } catch (error) {
-        console.error('Search failed', error)
-      } finally {
-        setLoadingSearch(false)
-      }
-    }, 350)
-
-    return () => clearTimeout(debounced)
-  }, [searchText])
-
-  useEffect(() => {
     if (!location.hash) return
     const targetId = location.hash.replace('#', '')
     if (!targetId) return
@@ -135,10 +112,8 @@ const DashboardPage = () => {
     return () => clearTimeout(timer)
   }, [location.hash])
 
-  const displayedBooks = useMemo(
-    () => (searchText.trim() ? searchResults : trendingBooks.slice(0, 8)),
-    [searchResults, searchText, trendingBooks],
-  )
+  const displayedBooks = useMemo(() => trendingBooks.slice(0, 8), [trendingBooks])
+  const heroGenres = allGenres.slice(0, 6)
 
   const leadCollection = genreCards[0] || null
   const railCollections = genreCards.slice(1)
@@ -185,17 +160,21 @@ const DashboardPage = () => {
               <span>Great Read</span>
             </h2>
             <p className="hero__subcopy">Exciting discoveries, thoughtful reviews, and communities of like-minded people.</p>
-            <input
-              type="search"
-              placeholder="Search the archive by title, author, or genre..."
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-            />
-            <div className="hero__tags">
-              {genres.map((genre) => (
-                <span key={genre}>#{genre.replace(/\s+/g, '')}</span>
-              ))}
-            </div>
+            <SearchSuggest genres={allGenres} popularGenres={heroGenres} placeholder="Search by title, author or genre…" />
+            {heroGenres.length > 0 && (
+              <nav className="hero__tags" aria-label="Popular collections">
+                {heroGenres.map((genre) => (
+                  <Link key={genre} to={collectionPath(genre)}>
+                    <span aria-hidden="true">#</span>
+                    {genre.replace(/\s+/g, '')}
+                  </Link>
+                ))}
+                <Link className="hero__tags-all" to="/collections">
+                  All collections
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </nav>
+            )}
           </MotionDiv>
           <MotionDiv
             className="hero__image hero__image--book"
@@ -231,29 +210,17 @@ const DashboardPage = () => {
           transition={{ duration: 0.5 }}
         >
           <div className="section__header">
-            <h3>{searchText.trim() ? 'Search Results' : 'Currently Trending'}</h3>
-            <p>{searchText.trim() ? 'Results from your archive query' : 'The most checked-out volumes this week'}</p>
+            <h3>Currently Trending</h3>
+            <p>The most checked-out volumes this week</p>
           </div>
-          {(loadingSearch || loadingHome) && (
+          {loadingHome && (
             <div className="shelf-skeleton">
               {Array.from({ length: 4 }).map((_, index) => (
                 <div key={index} className="skeleton-card" />
               ))}
             </div>
           )}
-          {!loadingSearch && searchText.trim() && displayedBooks.length === 0 && (
-            <div className="empty-search">
-              <p>No books found for "{searchText.trim()}".</p>
-              <MotionButton
-                type="button"
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate(`/books/new?query=${encodeURIComponent(searchText.trim())}`)}
-              >
-                Add this book to archive
-              </MotionButton>
-            </div>
-          )}
-          {!loadingSearch && !loadingHome && displayedBooks.length > 0 && (
+          {!loadingHome && displayedBooks.length > 0 && (
             <div className="shelf-wrap">
               <button
                 type="button"
@@ -308,6 +275,10 @@ const DashboardPage = () => {
             <p className="folio-section__lede">
               Each shelf opens with a few covers — follow the one that catches your eye.
             </p>
+            <Link className="folio-section__all" to="/collections">
+              See all collections
+              <span aria-hidden="true">→</span>
+            </Link>
           </div>
 
           {loadingHome ? (
@@ -335,7 +306,7 @@ const DashboardPage = () => {
                     <button
                       type="button"
                       className="folio-link"
-                      onClick={() => navigate(`/search?genres=${encodeURIComponent(leadCollection.genre)}&page=0`)}
+                      onClick={() => navigate(collectionPath(leadCollection.genre))}
                     >
                       Open collection
                       <span aria-hidden="true">→</span>
@@ -351,7 +322,7 @@ const DashboardPage = () => {
                           className={`folio-cover folio-cover--${index}`}
                           onClick={() => {
                             if (book?.id) navigate(`/books/${book.id}`)
-                            else navigate(`/search?genres=${encodeURIComponent(leadCollection.genre)}&page=0`)
+                            else navigate(collectionPath(leadCollection.genre))
                           }}
                         >
                           <img
@@ -383,7 +354,7 @@ const DashboardPage = () => {
                             className={`folio-card__cover folio-card__cover--${coverIndex}`}
                             onClick={() => {
                               if (book?.id) navigate(`/books/${book.id}`)
-                              else navigate(`/search?genres=${encodeURIComponent(card.genre)}&page=0`)
+                              else navigate(collectionPath(card.genre))
                             }}
                           >
                             <img
@@ -399,7 +370,7 @@ const DashboardPage = () => {
                         <button
                           type="button"
                           className="folio-link folio-link--compact"
-                          onClick={() => navigate(`/search?genres=${encodeURIComponent(card.genre)}&page=0`)}
+                          onClick={() => navigate(collectionPath(card.genre))}
                         >
                           Browse shelf
                           <span aria-hidden="true">→</span>

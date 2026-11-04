@@ -522,3 +522,27 @@
     animation: none;
   }
 }
+
+/* Phones: full-width tabs and finger-sized buttons. The footer now clears the tab bar, so no extra bottom padding. */
+@media (max-width: 740px) {
+  .clubs-content {
+    width: calc(100% - 2rem);
+    padding-bottom: 2rem;
+  }
+
+  .clubs-tabs {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .clubs-tabs button {
+    flex: 1 1 0;
+    min-height: 2.75rem;
+  }
+
+  .clubs-primary,
+  .ghost {
+    min-height: 2.5rem;
+  }
+}

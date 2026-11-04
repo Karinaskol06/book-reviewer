@@ -677,3 +677,19 @@
     transition: none;
   }
 }
+
+/* Phones: finger-sized feed actions and readable timestamps. */
+@media (max-width: 740px) {
+  .feed-find__toggle,
+  .feed-text-link {
+    min-height: 2.5rem;
+  }
+
+  .feed-text-link {
+    font-size: 0.78rem;
+  }
+
+  .feed-item__time {
+    font-size: 0.76rem;
+  }
+}
